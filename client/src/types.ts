@@ -12,6 +12,40 @@ export type TaskSummary = {
   subtaskCompleted: number
 }
 
+export type LinkAttachment = {
+  id: number
+  ownerType: 'TASK' | 'NOTE'
+  ownerId: number
+  url: string
+  title: string | null
+  description: string | null
+  imageUrl: string | null
+  faviconUrl: string | null
+  screenshotUrl: string | null
+  lastFetchedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type NoteSummary = {
+  id: number
+  title: string
+  excerpt: string
+  createdAt: string
+  updatedAt: string
+  linkedTaskCount: number
+}
+
+export type NoteDetail = {
+  id: number
+  title: string
+  body: string
+  createdAt: string
+  updatedAt: string
+  linkedTasks: TaskSummary[]
+  links: LinkAttachment[]
+}
+
 export type Subtask = {
   id: number
   taskId: number
@@ -19,7 +53,27 @@ export type Subtask = {
   isCompleted: boolean
 }
 
+export type TaskLinkedNote = {
+  id: number
+  title: string
+  createdAt: string
+  updatedAt: string
+}
+
 export type TaskDetail = TaskSummary & {
   subtasks: Subtask[]
+  linkedNotes: TaskLinkedNote[]
+  links: LinkAttachment[]
+}
+
+export type Reminder = {
+  id: number
+  targetType: 'TASK' | 'NOTE'
+  targetId: number
+  dueAt: string
+  message: string
+  isDone: boolean
+  firedAt: string | null
+  createdAt: string
 }
 

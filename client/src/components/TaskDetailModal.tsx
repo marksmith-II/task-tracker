@@ -1,9 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Save, Trash2, X } from 'lucide-react'
-import type { TaskDetail, TaskStatus, TaskSummary } from '../types'
+import type { LinkAttachment, NoteSummary, TaskDetail, TaskLinkedNote, TaskStatus, TaskSummary } from '../types'
 import { cn } from '../lib/cn'
-import { addSubtask, createTask, deleteSubtask, deleteTask, updateSubtask, updateTask } from '../lib/api'
+import {
+  addSubtask,
+  addTaskLink,
+  createNoteFromTask,
+  createTask,
+  deleteLink,
+  deleteSubtask,
+  deleteTask,
+  linkNoteToTask,
+  listNotes,
+  unlinkNoteFromTask,
+  updateSubtask,
+  updateTask,
+} from '../lib/api'
 import { TagBadge } from './TagBadge'
+import { LinkAttachmentsSection } from './LinkAttachments'
 
 function normalizeTagInput(raw: string) {
   return raw
@@ -31,6 +45,10 @@ export function TaskDetailModal(props: {
   const [tagDraft, setTagDraft] = useState('')
   const [subtaskDraft, setSubtaskDraft] = useState('')
   const [subtasks, setSubtasks] = useState<TaskDetail['subtasks']>([])
+  const [linkedNotes, setLinkedNotes] = useState<TaskLinkedNote[]>([])
+  const [allNotes, setAllNotes] = useState<NoteSummary[]>([])
+  const [noteToLinkId, setNoteToLinkId] = useState<number | ''>('')
+  const [links, setLinks] = useState<LinkAttachment[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -63,7 +81,22 @@ export function TaskDetailModal(props: {
     }
 
     setSubtasks(task?.subtasks ?? [])
-  }, [open, task?.id, task?.subtasks])
+    setLinkedNotes(task?.linkedNotes ?? [])
+    setLinks(task?.links ?? [])
+  }, [open, task?.id, task?.subtasks, task?.linkedNotes, task?.links])
+
+  useEffect(() => {
+    if (!open) return
+    if (!task?.id) return
+    ;(async () => {
+      try {
+        const notes = await listNotes()
+        setAllNotes(notes)
+      } catch {
+        // best-effort
+      }
+    })()
+  }, [open, task?.id])
 
   useEffect(() => {
     if (!open) return
@@ -81,6 +114,8 @@ export function TaskDetailModal(props: {
   if (!open) return null
 
   const canEditSubtasks = Boolean(task?.id)
+  const canEditLinks = Boolean(task?.id)
+  const canEditNoteLinks = Boolean(task?.id)
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
@@ -222,6 +257,138 @@ export function TaskDetailModal(props: {
           <div className="mt-5 border-t border-zinc-200 pt-4">
             <div className="flex items-center justify-between gap-3">
               <div>
+                <p className="text-xs font-medium text-slate-700">Linked notes</p>
+                <p className="text-xs text-slate-500">Connect notes to this task (or create one).</p>
+              </div>
+              {task?.id ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!task) return
+                    setError(null)
+                    try {
+                      await createNoteFromTask(task.id)
+                      await props.onRequestRefresh(task.id)
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Failed to create note')
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                  disabled={busy}
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Note
+                </button>
+              ) : null}
+            </div>
+
+            {!canEditNoteLinks ? (
+              <div className="mt-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-slate-600">
+                Save this task first to link notes.
+              </div>
+            ) : (
+              <>
+                <div className="mt-2 space-y-2">
+                  {linkedNotes.length ? (
+                    linkedNotes.map((n) => (
+                      <div key={n.id} className="flex items-center justify-between gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-slate-900">{n.title}</p>
+                          <p className="text-xs text-slate-500">Updated: {n.updatedAt}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!task) return
+                            if (!confirm('Unlink this note from the task?')) return
+                            setError(null)
+                            try {
+                              await unlinkNoteFromTask(task.id, n.id)
+                              setLinkedNotes((prev) => prev.filter((x) => x.id !== n.id))
+                            } catch (err) {
+                              setError(err instanceof Error ? err.message : 'Failed to unlink note')
+                            }
+                          }}
+                          className="rounded-lg p-2 text-slate-500 hover:bg-zinc-100 hover:text-rose-700"
+                          aria-label="Unlink note"
+                          title="Unlink"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-slate-600">
+                      No linked notes yet.
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-3 flex gap-2">
+                  <select
+                    value={noteToLinkId}
+                    onChange={(e) => setNoteToLinkId(e.target.value ? Number(e.target.value) : '')}
+                    className="h-10 flex-1 rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-slate-400 focus:ring-4 focus:ring-slate-900/5"
+                  >
+                    <option value="">Link existing note…</option>
+                    {allNotes
+                      .filter((n) => !linkedNotes.some((ln) => ln.id === n.id))
+                      .map((n) => (
+                        <option key={n.id} value={n.id}>
+                          {n.title}
+                        </option>
+                      ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!task || !noteToLinkId) return
+                      setError(null)
+                      try {
+                        await linkNoteToTask(task.id, noteToLinkId)
+                        await props.onRequestRefresh(task.id)
+                        setNoteToLinkId('')
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : 'Failed to link note')
+                      }
+                    }}
+                    className="h-10 rounded-xl border border-zinc-200 bg-white px-3 text-sm font-medium text-slate-900 hover:bg-zinc-50"
+                    disabled={!noteToLinkId || busy}
+                  >
+                    Link
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          <LinkAttachmentsSection
+            links={links}
+            disabledReason={!canEditLinks ? 'Save this task first to add links.' : null}
+            onAdd={async (url) => {
+              if (!task) return
+              setError(null)
+              try {
+                const created = await addTaskLink(task.id, url)
+                setLinks((prev) => [created, ...prev])
+              } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to add link')
+              }
+            }}
+            onDelete={async (id) => {
+              setError(null)
+              try {
+                await deleteLink(id)
+                setLinks((prev) => prev.filter((l) => l.id !== id))
+              } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to delete link')
+              }
+            }}
+          />
+
+          <div className="mt-5 border-t border-zinc-200 pt-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
                 <p className="text-xs font-medium text-slate-700">Subtasks</p>
                 <p className="text-xs text-slate-500">Checklist items with completion tracking.</p>
               </div>
@@ -248,6 +415,7 @@ export function TaskDetailModal(props: {
                             type="checkbox"
                             checked={s.isCompleted}
                             onChange={async (e) => {
+                              if (!task) return
                               setError(null)
                               try {
                                 await updateSubtask(s.id, { isCompleted: e.target.checked })
@@ -269,6 +437,7 @@ export function TaskDetailModal(props: {
                           type="button"
                           onClick={async () => {
                             if (!confirm('Delete this subtask?')) return
+                            if (!task) return
                             setError(null)
                             try {
                               await deleteSubtask(s.id)

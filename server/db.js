@@ -28,6 +28,56 @@ CREATE TABLE IF NOT EXISTS subtasks (
   content TEXT NOT NULL,
   is_completed INTEGER NOT NULL DEFAULT 0
 );
+
+-- Notes (rich, linkable documents)
+CREATE TABLE IF NOT EXISTS notes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL
+);
+
+-- Many-to-many links between notes and tasks
+CREATE TABLE IF NOT EXISTS note_task_links (
+  note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  createdAt TEXT NOT NULL,
+  PRIMARY KEY (note_id, task_id)
+);
+
+-- Reminders linked to either a task or a note
+CREATE TABLE IF NOT EXISTS reminders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  targetType TEXT NOT NULL CHECK(targetType IN ('TASK','NOTE')),
+  targetId INTEGER NOT NULL,
+  dueAt TEXT NOT NULL,
+  message TEXT NOT NULL DEFAULT '',
+  isDone INTEGER NOT NULL DEFAULT 0,
+  firedAt TEXT,
+  createdAt TEXT NOT NULL
+);
+
+-- URL attachments with preview metadata (and optional screenshot)
+CREATE TABLE IF NOT EXISTS link_attachments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ownerType TEXT NOT NULL CHECK(ownerType IN ('TASK','NOTE')),
+  ownerId INTEGER NOT NULL,
+  url TEXT NOT NULL,
+  title TEXT,
+  description TEXT,
+  imageUrl TEXT,
+  faviconUrl TEXT,
+  screenshotPath TEXT,
+  lastFetchedAt TEXT,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_note_task_links_task_id ON note_task_links(task_id);
+CREATE INDEX IF NOT EXISTS idx_note_task_links_note_id ON note_task_links(note_id);
+CREATE INDEX IF NOT EXISTS idx_reminders_dueAt ON reminders(dueAt);
+CREATE INDEX IF NOT EXISTS idx_links_owner ON link_attachments(ownerType, ownerId);
 `)
 
 function safeParseTags(tagsText) {
