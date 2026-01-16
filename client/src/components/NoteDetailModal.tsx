@@ -86,17 +86,17 @@ export function NoteDetailModal(props: {
         aria-label="Close modal"
       />
 
-      <div className="relative w-full max-w-3xl rounded-2xl border border-zinc-200 bg-white shadow-xl">
-        <div className="flex items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3">
+      <div className="relative w-full max-w-3xl rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-gray-800 shadow-xl">
+        <div className="flex items-center justify-between gap-3 border-b border-zinc-200 dark:border-zinc-700 px-4 py-3">
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-slate-900">{isNew ? 'New Note' : 'Note'}</h2>
-            <p className="text-xs text-slate-500">Write notes, link tasks, and attach links.</p>
+            <h2 className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{isNew ? 'New Note' : 'Note'}</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Write notes, link tasks, and attach links.</p>
           </div>
 
           <button
             type="button"
             onClick={props.onClose}
-            className="rounded-xl p-2 text-slate-500 hover:bg-zinc-100 hover:text-slate-700"
+            className="rounded-xl p-2 text-slate-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-gray-700 hover:text-slate-700 dark:hover:text-slate-200"
             aria-label="Close"
           >
             <X className="h-4 w-4" />
@@ -105,35 +105,35 @@ export function NoteDetailModal(props: {
 
         <div className="max-h-[75vh] overflow-auto px-4 py-4">
           {error ? (
-            <div className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</div>
+            <div className="mb-3 rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/30 px-3 py-2 text-sm text-rose-800 dark:text-rose-200">{error}</div>
           ) : null}
 
           <label className="grid gap-1">
-            <span className="text-xs font-medium text-slate-700">Title</span>
+            <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Title</span>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="h-10 rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-slate-400 focus:ring-4 focus:ring-slate-900/5"
+              className="h-10 rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400 dark:focus:border-slate-500 focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-slate-500/20"
               placeholder="e.g. CAP Build Guide"
             />
           </label>
 
           <label className="mt-3 grid gap-1">
-            <span className="text-xs font-medium text-slate-700">Body</span>
+            <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Body</span>
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={10}
-              className="resize-none rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-4 focus:ring-slate-900/5"
+              className="resize-none rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400 dark:focus:border-slate-500 focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-slate-500/20"
               placeholder="Write your note…"
             />
           </label>
 
-          <div className="mt-5 border-t border-zinc-200 pt-4">
+          <div className="mt-5 border-t border-zinc-200 dark:border-zinc-700 pt-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-medium text-slate-700">Linked tasks</p>
-                <p className="text-xs text-slate-500">Connect tasks to this note (or create one).</p>
+                <p className="text-xs font-medium text-slate-700 dark:text-slate-300">Linked tasks</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Connect tasks to this note (or create one).</p>
               </div>
               {note?.id ? (
                 <button
@@ -150,7 +150,7 @@ export function NoteDetailModal(props: {
                       setError(err instanceof Error ? err.message : 'Failed to create task')
                     }
                   }}
-                  className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                  className="inline-flex items-center gap-2 rounded-xl bg-slate-900 dark:bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:hover:bg-indigo-500"
                   disabled={busy}
                 >
                   <Plus className="h-4 w-4" />
@@ -160,7 +160,7 @@ export function NoteDetailModal(props: {
             </div>
 
             {!canEditTaskLinks ? (
-              <div className="mt-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-slate-600">
+              <div className="mt-2 rounded-xl border border-zinc-200 dark:border-zinc-600 bg-zinc-50 dark:bg-gray-700/50 px-3 py-2 text-sm text-slate-600 dark:text-slate-400">
                 Save this note first to link tasks.
               </div>
             ) : (
@@ -168,10 +168,10 @@ export function NoteDetailModal(props: {
                 <div className="mt-2 space-y-2">
                   {linkedTasks.length ? (
                     linkedTasks.map((t) => (
-                      <div key={t.id} className="flex items-center justify-between gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2">
+                      <div key={t.id} className="flex items-center justify-between gap-2 rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 py-2">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-slate-900">{t.title}</p>
-                          <p className="text-xs text-slate-500">{t.status}</p>
+                          <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{t.title}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">{t.status}</p>
                         </div>
                         <button
                           type="button"
@@ -186,7 +186,7 @@ export function NoteDetailModal(props: {
                               setError(err instanceof Error ? err.message : 'Failed to unlink task')
                             }
                           }}
-                          className="rounded-lg p-2 text-slate-500 hover:bg-zinc-100 hover:text-rose-700"
+                          className="rounded-lg p-2 text-slate-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-gray-600 hover:text-rose-700 dark:hover:text-rose-400"
                           aria-label="Unlink task"
                           title="Unlink"
                         >
@@ -195,7 +195,7 @@ export function NoteDetailModal(props: {
                       </div>
                     ))
                   ) : (
-                    <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-slate-600">
+                    <div className="rounded-xl border border-zinc-200 dark:border-zinc-600 bg-zinc-50 dark:bg-gray-700/50 px-3 py-2 text-sm text-slate-600 dark:text-slate-400">
                       No linked tasks yet.
                     </div>
                   )}
@@ -205,7 +205,7 @@ export function NoteDetailModal(props: {
                   <select
                     value={taskToLinkId}
                     onChange={(e) => setTaskToLinkId(e.target.value ? Number(e.target.value) : '')}
-                    className="h-10 flex-1 rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-slate-400 focus:ring-4 focus:ring-slate-900/5"
+                    className="h-10 flex-1 rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400 dark:focus:border-slate-500 focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-slate-500/20"
                   >
                     <option value="">Link existing task…</option>
                     {availableTasks.map((t) => (
@@ -228,7 +228,7 @@ export function NoteDetailModal(props: {
                         setError(err instanceof Error ? err.message : 'Failed to link task')
                       }
                     }}
-                    className="h-10 rounded-xl border border-zinc-200 bg-white px-3 text-sm font-medium text-slate-900 hover:bg-zinc-50"
+                    className="h-10 rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 text-sm font-medium text-slate-900 dark:text-slate-100 hover:bg-zinc-50 dark:hover:bg-gray-600"
                     disabled={!taskToLinkId || busy}
                   >
                     Link
@@ -263,7 +263,7 @@ export function NoteDetailModal(props: {
           />
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-zinc-200 px-4 py-3">
+        <div className="flex items-center justify-between gap-3 border-t border-zinc-200 dark:border-zinc-700 px-4 py-3">
           {!isNew ? (
             <button
               type="button"
@@ -281,7 +281,7 @@ export function NoteDetailModal(props: {
                   setBusy(false)
                 }
               }}
-              className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-800 hover:bg-rose-100"
+              className="inline-flex items-center gap-2 rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/30 px-3 py-2 text-sm font-medium text-rose-800 dark:text-rose-200 hover:bg-rose-100 dark:hover:bg-rose-900/50"
               disabled={busy}
             >
               <Trash2 className="h-4 w-4" />
@@ -295,7 +295,7 @@ export function NoteDetailModal(props: {
             <button
               type="button"
               onClick={props.onClose}
-              className="rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-zinc-100"
+              className="rounded-xl px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-zinc-100 dark:hover:bg-gray-700"
               disabled={busy}
             >
               Cancel
@@ -326,7 +326,7 @@ export function NoteDetailModal(props: {
               }}
               className={cn(
                 'inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-white shadow-sm',
-                busy ? 'bg-slate-400' : 'bg-slate-900 hover:bg-slate-800'
+                busy ? 'bg-slate-400 dark:bg-slate-600' : 'bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-500'
               )}
               disabled={busy}
             >

@@ -35,11 +35,14 @@ function toTaskSummary(row) {
     title: row.title,
     notes: row.notes ?? '',
     status: row.status,
+    priority: row.priority ?? null,
     dueDate: row.dueDate ?? null,
     tags: safeParseTags(row.tags),
     createdAt: row.createdAt,
     subtaskTotal: Number(row.subtaskTotal ?? 0),
     subtaskCompleted: Number(row.subtaskCompleted ?? 0),
+    sortOrder: Number(row.sortOrder ?? 0),
+    archivedAt: row.archivedAt ?? null,
   }
 }
 
@@ -53,6 +56,7 @@ function toNoteSummary(row) {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     linkedTaskCount: Number(row.linkedTaskCount ?? 0),
+    sortOrder: Number(row.sortOrder ?? 0),
   }
 }
 
@@ -184,9 +188,16 @@ app.use(SCREENSHOT_ROUTE, express.static(SCREENSHOT_DIR, { fallthrough: true, ma
 app.get('/api/tasks', (req, res) => {
   const status = req.query.status ? String(req.query.status) : null
   const tag = req.query.tag ? String(req.query.tag) : null
+  const includeArchived = String(req.query.includeArchived ?? '') === '1'
 
   const where = []
   const params = {}
+  
+  // By default, exclude archived tasks unless explicitly requested
+  if (!includeArchived) {
+    where.push('t.archivedAt IS NULL')
+  }
+  
   if (status && ['TODO', 'IN_PROGRESS', 'DONE'].includes(status)) {
     where.push('t.status = @status')
     params.status = status
@@ -210,11 +221,59 @@ app.get('/api/tasks', (req, res) => {
     LEFT JOIN subtasks s ON s.task_id = t.id
     ${whereSql}
     GROUP BY t.id
-    ORDER BY datetime(t.createdAt) DESC, t.id DESC
+    ORDER BY t.sortOrder ASC, datetime(t.createdAt) DESC, t.id DESC
   `)
 
   const rows = stmt.all(params)
   res.json(rows.map(toTaskSummary))
+})
+
+// List archived tasks with search
+app.get('/api/tasks/archived', (req, res) => {
+  const search = req.query.search ? String(req.query.search).trim() : ''
+  
+  const where = ['t.archivedAt IS NOT NULL']
+  const params = {}
+  
+  if (search) {
+    where.push('(t.title LIKE @searchLike OR t.notes LIKE @searchLike)')
+    params.searchLike = `%${search}%`
+  }
+
+  const whereSql = `WHERE ${where.join(' AND ')}`
+
+  const stmt = db.prepare(`
+    SELECT
+      t.*,
+      COUNT(s.id) AS subtaskTotal,
+      COALESCE(SUM(CASE WHEN s.is_completed = 1 THEN 1 ELSE 0 END), 0) AS subtaskCompleted
+    FROM tasks t
+    LEFT JOIN subtasks s ON s.task_id = t.id
+    ${whereSql}
+    GROUP BY t.id
+    ORDER BY datetime(t.archivedAt) DESC, t.id DESC
+  `)
+
+  const rows = stmt.all(params)
+  res.json(rows.map(toTaskSummary))
+})
+
+// Reorder tasks - update sortOrder for multiple tasks
+app.put('/api/tasks/reorder', (req, res) => {
+  const items = req.body?.items
+  if (!Array.isArray(items)) return res.status(400).json({ error: 'items array is required' })
+
+  const tx = db.transaction(() => {
+    for (const item of items) {
+      const id = Number(item.id)
+      const sortOrder = Number(item.sortOrder)
+      if (!Number.isFinite(id) || !Number.isFinite(sortOrder)) continue
+      db.prepare('UPDATE tasks SET sortOrder = ? WHERE id = ?').run(sortOrder, id)
+    }
+  })
+
+  tx()
+  res.json({ ok: true })
 })
 
 // Get one task + its subtasks
@@ -271,25 +330,29 @@ app.post('/api/tasks', (req, res) => {
 
   const notes = typeof req.body?.notes === 'string' ? req.body.notes : ''
   const status = ['TODO', 'IN_PROGRESS', 'DONE'].includes(req.body?.status) ? req.body.status : 'TODO'
+  const priority = ['HIGH', 'MEDIUM', 'LOW'].includes(req.body?.priority) ? req.body.priority : null
   const dueDate = typeof req.body?.dueDate === 'string' && req.body.dueDate.trim() ? req.body.dueDate.trim() : null
   const tags = normalizeTags(req.body?.tags)
 
   const createdAt = nowIso()
 
   const info = db
-    .prepare('INSERT INTO tasks (title, notes, status, dueDate, tags, createdAt) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(title, notes, status, dueDate, JSON.stringify(tags), createdAt)
+    .prepare('INSERT INTO tasks (title, notes, status, priority, dueDate, tags, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(title, notes, status, priority, dueDate, JSON.stringify(tags), createdAt)
 
   const task = {
     id: Number(info.lastInsertRowid),
     title,
     notes,
     status,
+    priority,
     dueDate,
     tags,
     createdAt,
     subtaskTotal: 0,
     subtaskCompleted: 0,
+    sortOrder: 0,
+    archivedAt: null,
   }
 
   res.status(201).json(task)
@@ -335,6 +398,12 @@ app.put('/api/tasks/:id', (req, res) => {
 
   const notes = typeof req.body?.notes === 'string' ? req.body.notes : existing.notes
   const status = ['TODO', 'IN_PROGRESS', 'DONE'].includes(req.body?.status) ? req.body.status : existing.status
+  const priority =
+    req.body?.priority === null
+      ? null
+      : ['HIGH', 'MEDIUM', 'LOW'].includes(req.body?.priority)
+        ? req.body.priority
+        : existing.priority ?? null
   const dueDate =
     req.body?.dueDate === null
       ? null
@@ -343,10 +412,11 @@ app.put('/api/tasks/:id', (req, res) => {
         : existing.dueDate ?? null
   const tags = req.body?.tags !== undefined ? normalizeTags(req.body.tags) : safeParseTags(existing.tags)
 
-  db.prepare('UPDATE tasks SET title = ?, notes = ?, status = ?, dueDate = ?, tags = ? WHERE id = ?').run(
+  db.prepare('UPDATE tasks SET title = ?, notes = ?, status = ?, priority = ?, dueDate = ?, tags = ? WHERE id = ?').run(
     title,
     notes,
     status,
+    priority,
     dueDate,
     JSON.stringify(tags),
     id
@@ -379,6 +449,63 @@ app.delete('/api/tasks/:id', (req, res) => {
   const info = db.prepare('DELETE FROM tasks WHERE id = ?').run(id)
   if (info.changes === 0) return res.status(404).json({ error: 'Task not found' })
   res.status(204).send()
+})
+
+// Archive a task
+app.post('/api/tasks/:id/archive', (req, res) => {
+  const id = Number(req.params.id)
+  if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid task id' })
+
+  const existing = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id)
+  if (!existing) return res.status(404).json({ error: 'Task not found' })
+
+  const ts = nowIso()
+  db.prepare('UPDATE tasks SET archivedAt = ? WHERE id = ?').run(ts, id)
+
+  const taskRow = db
+    .prepare(
+      `
+      SELECT
+        t.*,
+        COUNT(s.id) AS subtaskTotal,
+        COALESCE(SUM(CASE WHEN s.is_completed = 1 THEN 1 ELSE 0 END), 0) AS subtaskCompleted
+      FROM tasks t
+      LEFT JOIN subtasks s ON s.task_id = t.id
+      WHERE t.id = ?
+      GROUP BY t.id
+    `
+    )
+    .get(id)
+
+  res.json(toTaskSummary(taskRow))
+})
+
+// Unarchive a task
+app.post('/api/tasks/:id/unarchive', (req, res) => {
+  const id = Number(req.params.id)
+  if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid task id' })
+
+  const existing = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id)
+  if (!existing) return res.status(404).json({ error: 'Task not found' })
+
+  db.prepare('UPDATE tasks SET archivedAt = NULL WHERE id = ?').run(id)
+
+  const taskRow = db
+    .prepare(
+      `
+      SELECT
+        t.*,
+        COUNT(s.id) AS subtaskTotal,
+        COALESCE(SUM(CASE WHEN s.is_completed = 1 THEN 1 ELSE 0 END), 0) AS subtaskCompleted
+      FROM tasks t
+      LEFT JOIN subtasks s ON s.task_id = t.id
+      WHERE t.id = ?
+      GROUP BY t.id
+    `
+    )
+    .get(id)
+
+  res.json(toTaskSummary(taskRow))
 })
 
 // Link an existing note to a task
@@ -475,11 +602,29 @@ app.get('/api/notes', (_req, res) => {
         n.*,
         (SELECT COUNT(*) FROM note_task_links l WHERE l.note_id = n.id) AS linkedTaskCount
       FROM notes n
-      ORDER BY datetime(n.updatedAt) DESC, n.id DESC
+      ORDER BY n.sortOrder ASC, datetime(n.updatedAt) DESC, n.id DESC
     `
     )
     .all()
   res.json(rows.map(toNoteSummary))
+})
+
+// Reorder notes - update sortOrder for multiple notes
+app.put('/api/notes/reorder', (req, res) => {
+  const items = req.body?.items
+  if (!Array.isArray(items)) return res.status(400).json({ error: 'items array is required' })
+
+  const tx = db.transaction(() => {
+    for (const item of items) {
+      const id = Number(item.id)
+      const sortOrder = Number(item.sortOrder)
+      if (!Number.isFinite(id) || !Number.isFinite(sortOrder)) continue
+      db.prepare('UPDATE notes SET sortOrder = ? WHERE id = ?').run(sortOrder, id)
+    }
+  })
+
+  tx()
+  res.json({ ok: true })
 })
 
 app.post('/api/notes', (req, res) => {
@@ -587,13 +732,14 @@ app.post('/api/notes/:id/create-task', (req, res) => {
   const title = typeof req.body?.title === 'string' && req.body.title.trim() ? req.body.title.trim() : note.title
   const notes = typeof req.body?.notes === 'string' ? req.body.notes : ''
   const status = ['TODO', 'IN_PROGRESS', 'DONE'].includes(req.body?.status) ? req.body.status : 'TODO'
+  const priority = ['HIGH', 'MEDIUM', 'LOW'].includes(req.body?.priority) ? req.body.priority : null
   const dueDate = typeof req.body?.dueDate === 'string' && req.body.dueDate.trim() ? req.body.dueDate.trim() : null
   const tags = normalizeTags(req.body?.tags)
 
   const createdAt = nowIso()
   const info = db
-    .prepare('INSERT INTO tasks (title, notes, status, dueDate, tags, createdAt) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(title, notes, status, dueDate, JSON.stringify(tags), createdAt)
+    .prepare('INSERT INTO tasks (title, notes, status, priority, dueDate, tags, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(title, notes, status, priority, dueDate, JSON.stringify(tags), createdAt)
   const taskId = Number(info.lastInsertRowid)
 
   db.prepare('INSERT OR IGNORE INTO note_task_links (note_id, task_id, createdAt) VALUES (?, ?, ?)').run(noteId, taskId, createdAt)

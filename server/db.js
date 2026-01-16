@@ -17,9 +17,12 @@ CREATE TABLE IF NOT EXISTS tasks (
   title TEXT NOT NULL,
   notes TEXT DEFAULT '',
   status TEXT NOT NULL CHECK(status IN ('TODO','IN_PROGRESS','DONE')) DEFAULT 'TODO',
+  priority TEXT CHECK(priority IN ('HIGH','MEDIUM','LOW') OR priority IS NULL) DEFAULT NULL,
   dueDate TEXT,
   tags TEXT DEFAULT '[]',
-  createdAt TEXT NOT NULL
+  createdAt TEXT NOT NULL,
+  sortOrder INTEGER DEFAULT 0,
+  archivedAt TEXT DEFAULT NULL
 );
 
 CREATE TABLE IF NOT EXISTS subtasks (
@@ -35,7 +38,8 @@ CREATE TABLE IF NOT EXISTS notes (
   title TEXT NOT NULL,
   body TEXT NOT NULL DEFAULT '',
   createdAt TEXT NOT NULL,
-  updatedAt TEXT NOT NULL
+  updatedAt TEXT NOT NULL,
+  sortOrder INTEGER DEFAULT 0
 );
 
 -- Many-to-many links between notes and tasks
@@ -79,6 +83,25 @@ CREATE INDEX IF NOT EXISTS idx_note_task_links_note_id ON note_task_links(note_i
 CREATE INDEX IF NOT EXISTS idx_reminders_dueAt ON reminders(dueAt);
 CREATE INDEX IF NOT EXISTS idx_links_owner ON link_attachments(ownerType, ownerId);
 `)
+
+// Migrations for existing databases - add new columns if they don't exist
+const taskColumns = db.prepare("PRAGMA table_info(tasks)").all().map(c => c.name)
+if (!taskColumns.includes('sortOrder')) {
+  db.exec('ALTER TABLE tasks ADD COLUMN sortOrder INTEGER DEFAULT 0')
+}
+if (!taskColumns.includes('archivedAt')) {
+  db.exec('ALTER TABLE tasks ADD COLUMN archivedAt TEXT DEFAULT NULL')
+}
+
+const noteColumns = db.prepare("PRAGMA table_info(notes)").all().map(c => c.name)
+if (!noteColumns.includes('sortOrder')) {
+  db.exec('ALTER TABLE notes ADD COLUMN sortOrder INTEGER DEFAULT 0')
+}
+
+// Add priority column migration
+if (!taskColumns.includes('priority')) {
+  db.exec('ALTER TABLE tasks ADD COLUMN priority TEXT CHECK(priority IN (\'HIGH\',\'MEDIUM\',\'LOW\') OR priority IS NULL) DEFAULT NULL')
+}
 
 function safeParseTags(tagsText) {
   if (!tagsText) return []

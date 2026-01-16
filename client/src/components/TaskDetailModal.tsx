@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, Save, Trash2, X } from 'lucide-react'
-import type { LinkAttachment, NoteSummary, TaskDetail, TaskLinkedNote, TaskStatus, TaskSummary } from '../types'
+import { Archive, Plus, Save, Trash2, X } from 'lucide-react'
+import type { LinkAttachment, NoteSummary, TaskDetail, TaskLinkedNote, TaskPriority, TaskStatus, TaskSummary } from '../types'
 import { cn } from '../lib/cn'
 import {
   addSubtask,
   addTaskLink,
+  archiveTask,
   createNoteFromTask,
   createTask,
   deleteLink,
@@ -16,22 +17,17 @@ import {
   updateSubtask,
   updateTask,
 } from '../lib/api'
-import { TagBadge } from './TagBadge'
+import { TagInput } from './TagInput'
 import { LinkAttachmentsSection } from './LinkAttachments'
-
-function normalizeTagInput(raw: string) {
-  return raw
-    .split(',')
-    .map((t) => t.trim())
-    .filter(Boolean)
-}
 
 export function TaskDetailModal(props: {
   open: boolean
   task: TaskDetail | null
+  allTags: string[]
   onClose: () => void
   onUpsertSummary: (task: TaskSummary) => void
   onDeleted: (id: number) => void
+  onArchived?: (id: number) => void
   onRequestRefresh: (id: number) => void | Promise<void>
 }) {
   const { open, task } = props
@@ -40,9 +36,9 @@ export function TaskDetailModal(props: {
   const [title, setTitle] = useState('')
   const [notes, setNotes] = useState('')
   const [status, setStatus] = useState<TaskStatus>('TODO')
+  const [priority, setPriority] = useState<TaskPriority | null>(null)
   const [dueDate, setDueDate] = useState<string | null>(null)
   const [tags, setTags] = useState<string[]>([])
-  const [tagDraft, setTagDraft] = useState('')
   const [subtaskDraft, setSubtaskDraft] = useState('')
   const [subtasks, setSubtasks] = useState<TaskDetail['subtasks']>([])
   const [linkedNotes, setLinkedNotes] = useState<TaskLinkedNote[]>([])
@@ -65,7 +61,6 @@ export function TaskDetailModal(props: {
 
     setError(null)
     setBusy(false)
-    setTagDraft('')
     setSubtaskDraft('')
 
     // Only initialize full form state when opening, or when switching tasks.
@@ -76,6 +71,7 @@ export function TaskDetailModal(props: {
       setTitle(task?.title ?? '')
       setNotes(task?.notes ?? '')
       setStatus(task?.status ?? 'TODO')
+      setPriority(task?.priority ?? null)
       setDueDate(task?.dueDate ?? null)
       setTags(task?.tags ?? [])
     }
@@ -121,15 +117,15 @@ export function TaskDetailModal(props: {
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
       <button
         type="button"
-        className="absolute inset-0 bg-slate-950/30 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-slate-950/50 backdrop-blur-[2px]"
         onClick={props.onClose}
         aria-label="Close modal"
       />
 
-      <div className="relative w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white shadow-xl">
-        <div className="flex items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3">
+      <div className="relative w-full max-w-2xl rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-gray-800 shadow-xl">
+        <div className="flex items-center justify-between gap-3 border-b border-zinc-200 dark:border-zinc-700 px-4 py-3">
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-slate-900">{isNew ? 'New Task' : 'Task Details'}</h2>
+            <h2 className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{isNew ? 'New Task' : 'Task Details'}</h2>
             {!isNew ? (
               <p className="text-xs text-slate-500">
                 Subtasks: <span className="font-medium text-slate-700">{progress.done}</span>/{progress.total}
@@ -139,41 +135,41 @@ export function TaskDetailModal(props: {
             )}
           </div>
 
-          <button
+            <button
             type="button"
             onClick={props.onClose}
-            className="rounded-xl p-2 text-slate-500 hover:bg-zinc-100 hover:text-slate-700"
+            className="rounded-xl p-2 text-slate-500 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-slate-700 dark:hover:text-slate-300"
             aria-label="Close"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="max-h-[75vh] overflow-auto px-4 py-4">
+        <div className="max-h-[75vh] overflow-auto px-4 py-4 bg-white dark:bg-gray-800">
           {error ? (
-            <div className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+            <div className="mb-3 rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/30 px-3 py-2 text-sm text-rose-800 dark:text-rose-200">
               {error}
             </div>
           ) : null}
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1">
-              <span className="text-xs font-medium text-slate-700">Title</span>
+              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Title</span>
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="h-10 rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-slate-400 focus:ring-4 focus:ring-slate-900/5"
+                className="h-10 rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400 dark:focus:border-slate-500 focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-slate-500/20"
                 placeholder="e.g. Finish weekly report"
               />
             </label>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-slate-700">Status</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Status</span>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                  className="h-10 rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-slate-400 focus:ring-4 focus:ring-slate-900/5"
+                  className="h-10 rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400 dark:focus:border-slate-500 focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-slate-500/20"
                 >
                   <option value="TODO">Todo</option>
                   <option value="IN_PROGRESS">In Progress</option>
@@ -182,76 +178,52 @@ export function TaskDetailModal(props: {
               </label>
 
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-slate-700">Due date</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Priority</span>
+                <select
+                  value={priority ?? ''}
+                  onChange={(e) => setPriority(e.target.value ? e.target.value as TaskPriority : null)}
+                  className="h-10 rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400 dark:focus:border-slate-500 focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-slate-500/20"
+                >
+                  <option value="">None</option>
+                  <option value="HIGH">🔴 High</option>
+                  <option value="MEDIUM">🟡 Medium</option>
+                  <option value="LOW">🟢 Low</option>
+                </select>
+              </label>
+
+              <label className="grid gap-1">
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Due date</span>
                 <input
                   type="date"
                   value={dueDate ?? ''}
                   onChange={(e) => setDueDate(e.target.value ? e.target.value : null)}
-                  className="h-10 rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-slate-400 focus:ring-4 focus:ring-slate-900/5"
+                  className="h-10 rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400 dark:focus:border-slate-500 focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-slate-500/20 dark:[color-scheme:dark]"
                 />
               </label>
             </div>
           </div>
 
           <label className="mt-3 grid gap-1">
-            <span className="text-xs font-medium text-slate-700">Notes</span>
+            <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Notes</span>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={5}
-              className="resize-none rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-4 focus:ring-slate-900/5"
+              className="resize-none rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400 dark:focus:border-slate-500 focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-slate-500/20"
               placeholder="Optional details…"
             />
           </label>
 
           <div className="mt-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-medium text-slate-700">Tags</p>
-                <p className="text-xs text-slate-500">Comma-separated, press Enter to add.</p>
-              </div>
+            <div className="mb-2">
+              <p className="text-xs font-medium text-slate-700">Tags</p>
+              <p className="text-xs text-slate-500">Select existing tags or create new ones.</p>
             </div>
-
-            <div className="mt-2 flex flex-wrap gap-2">
-              {tags.map((t) => (
-                <TagBadge
-                  key={t}
-                  tag={t}
-                  onRemove={() => {
-                    setTags((prev) => prev.filter((x) => x !== t))
-                  }}
-                />
-              ))}
-              {tags.length === 0 ? <span className="text-sm text-slate-500/80">No tags</span> : null}
-            </div>
-
-            <div className="mt-2 flex gap-2">
-              <input
-                value={tagDraft}
-                onChange={(e) => setTagDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    const next = normalizeTagInput(tagDraft)
-                    if (next.length) setTags((prev) => Array.from(new Set([...prev, ...next])))
-                    setTagDraft('')
-                  }
-                }}
-                className="h-10 flex-1 rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-slate-400 focus:ring-4 focus:ring-slate-900/5"
-                placeholder="e.g. Work, Urgent"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  const next = normalizeTagInput(tagDraft)
-                  if (next.length) setTags((prev) => Array.from(new Set([...prev, ...next])))
-                  setTagDraft('')
-                }}
-                className="h-10 rounded-xl border border-zinc-200 bg-white px-3 text-sm font-medium text-slate-900 hover:bg-zinc-50"
-              >
-                Add
-              </button>
-            </div>
+            <TagInput
+              selectedTags={tags}
+              allTags={props.allTags}
+              onTagsChange={setTags}
+            />
           </div>
 
           <div className="mt-5 border-t border-zinc-200 pt-4">
@@ -515,28 +487,56 @@ export function TaskDetailModal(props: {
 
         <div className="flex items-center justify-between gap-3 border-t border-zinc-200 px-4 py-3">
           {!isNew ? (
-            <button
-              type="button"
-              onClick={async () => {
-                if (!task) return
-                if (!confirm('Delete this task and all its subtasks?')) return
-                setBusy(true)
-                setError(null)
-                try {
-                  await deleteTask(task.id)
-                  props.onDeleted(task.id)
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : 'Failed to delete task')
-                } finally {
-                  setBusy(false)
-                }
-              }}
-              className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-800 hover:bg-rose-100"
-              disabled={busy}
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!task) return
+                  if (!confirm('Delete this task and all its subtasks?')) return
+                  setBusy(true)
+                  setError(null)
+                  try {
+                    await deleteTask(task.id)
+                    props.onDeleted(task.id)
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : 'Failed to delete task')
+                  } finally {
+                    setBusy(false)
+                  }
+                }}
+                className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-800 hover:bg-rose-100"
+                disabled={busy}
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </button>
+              {task?.status === 'DONE' && props.onArchived ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!task) return
+                    if (!confirm('Archive this completed task? You can restore it later from the Archive tab.')) return
+                    setBusy(true)
+                    setError(null)
+                    try {
+                      await archiveTask(task.id)
+                      props.onArchived?.(task.id)
+                      props.onClose()
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Failed to archive task')
+                    } finally {
+                      setBusy(false)
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100"
+                  disabled={busy}
+                  title="Move to archive"
+                >
+                  <Archive className="h-4 w-4" />
+                  Archive
+                </button>
+              ) : null}
+            </div>
           ) : (
             <div />
           )}
@@ -562,7 +562,7 @@ export function TaskDetailModal(props: {
                 setBusy(true)
                 setError(null)
                 try {
-                  const payload = { title: trimmedTitle, notes, status, dueDate, tags }
+                  const payload = { title: trimmedTitle, notes, status, priority, dueDate, tags }
                   const saved = isNew ? await createTask(payload) : await updateTask(task!.id, payload)
                   props.onUpsertSummary(saved)
                   props.onClose()

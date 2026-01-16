@@ -1,11 +1,31 @@
-import { Plus, StickyNote } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { StickyNote } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { NoteDetail, NoteSummary, TaskSummary } from '../types'
-import { getNote, listNotes } from '../lib/api'
+import { getNote, listNotes, reorderNotes } from '../lib/api'
 import { cn } from '../lib/cn'
 import { NoteDetailModal } from './NoteDetailModal'
+import { SortableItem } from './SortableItem'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+} from '@dnd-kit/sortable'
 
-export function NotesPanel(props: { allTasks: TaskSummary[] }) {
+export function NotesPanel(props: { 
+  allTasks: TaskSummary[]
+  openModalFromHeader?: boolean
+  onModalOpened?: () => void
+}) {
   const [notes, setNotes] = useState<NoteSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -14,6 +34,18 @@ export function NotesPanel(props: { allTasks: TaskSummary[] }) {
   const [selected, setSelected] = useState<NoteDetail | null>(null)
 
   const [query, setQuery] = useState('')
+
+  // Sensors for drag and drop
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   async function refresh() {
     setLoading(true)
@@ -32,6 +64,15 @@ export function NotesPanel(props: { allTasks: TaskSummary[] }) {
     refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Handle opening modal from header
+  useEffect(() => {
+    if (props.openModalFromHeader) {
+      setSelected(null)
+      setModalOpen(true)
+      props.onModalOpened?.()
+    }
+  }, [props.openModalFromHeader, props.onModalOpened])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -73,76 +114,107 @@ export function NotesPanel(props: { allTasks: TaskSummary[] }) {
     }
   }
 
+  // Handle drag end for notes
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event
+      if (!over || active.id === over.id) return
+
+      const oldIndex = filtered.findIndex((n) => n.id === active.id)
+      const newIndex = filtered.findIndex((n) => n.id === over.id)
+
+      if (oldIndex === -1 || newIndex === -1) return
+
+      const reordered = arrayMove(filtered, oldIndex, newIndex)
+      const updates = reordered.map((n, i) => ({ id: n.id, sortOrder: i }))
+
+      // Optimistically update local state
+      setNotes((prev) => {
+        const updated = new Map(updates.map((u) => [u.id, u.sortOrder]))
+        return prev
+          .map((n) => (updated.has(n.id) ? { ...n, sortOrder: updated.get(n.id)! } : n))
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+      })
+
+      // Persist to server
+      try {
+        await reorderNotes(updates)
+      } catch {
+        // Revert on error by refreshing
+        refresh()
+      }
+    },
+    [filtered]
+  )
+
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+    <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-gray-800 p-4 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-slate-900">Notes</p>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Notes</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             {loading ? 'Loading…' : `Showing ${filtered.length} of ${notes.length}`}
           </p>
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <label className="grid gap-1">
-            <span className="text-xs font-medium text-slate-700">Search</span>
+            <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Search</span>
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="h-10 rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-slate-400 focus:ring-4 focus:ring-slate-900/5"
+              className="h-10 rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400 dark:focus:border-slate-500 focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-slate-500/20"
               placeholder="Title or text…"
             />
           </label>
-          <button
-            type="button"
-            onClick={() => {
-              setSelected(null)
-              setModalOpen(true)
-            }}
-            className="inline-flex h-10 items-center gap-2 rounded-xl bg-slate-900 px-3 text-sm font-medium text-white shadow-sm hover:bg-slate-800"
-          >
-            <Plus className="h-4 w-4" />
-            New Note
-          </button>
         </div>
       </div>
 
       {error ? (
-        <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</div>
+        <div className="mt-4 rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/30 px-3 py-2 text-sm text-rose-800 dark:text-rose-200">{error}</div>
       ) : null}
 
       {loading ? (
-        <div className="mt-6 text-sm text-slate-600">Loading…</div>
+        <div className="mt-6 text-sm text-slate-600 dark:text-slate-400">Loading…</div>
       ) : filtered.length === 0 ? (
-        <div className="mt-6 rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-6 text-center">
-          <p className="text-sm font-semibold text-slate-900">No notes yet.</p>
-          <p className="mt-1 text-sm text-slate-600">Create one to start linking tasks and collecting resources.</p>
+        <div className="mt-6 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-600 bg-zinc-50 dark:bg-gray-700/50 p-6 text-center">
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">No notes yet.</p>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Create one to start linking tasks and collecting resources.</p>
         </div>
       ) : (
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((n) => (
-            <button
-              key={n.id}
-              type="button"
-              onClick={() => openNote(n.id)}
-              className={cn('group w-full rounded-2xl border border-zinc-200 bg-white p-4 text-left shadow-sm hover:bg-zinc-50/70')}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <StickyNote className="h-4 w-4 text-slate-500" />
-                    <p className="truncate text-sm font-semibold text-slate-900">{n.title}</p>
-                  </div>
-                  <p className="mt-2 text-sm text-slate-600">{n.excerpt || '—'}</p>
-                </div>
-              </div>
-              <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-                <span>{n.linkedTaskCount} linked tasks</span>
-                <span>Updated {n.updatedAt}</span>
-              </div>
-            </button>
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={filtered.map((n) => n.id)} strategy={rectSortingStrategy}>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 pl-6">
+              {filtered.map((n) => (
+                <SortableItem key={n.id} id={n.id}>
+                  <button
+                    type="button"
+                    onClick={() => openNote(n.id)}
+                    className={cn('group w-full rounded-2xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 p-4 text-left shadow-sm hover:bg-zinc-50/70 dark:hover:bg-gray-600/70')}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <StickyNote className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+                          <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{n.title}</p>
+                        </div>
+                        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{n.excerpt || '—'}</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                      <span>{n.linkedTaskCount} linked tasks</span>
+                      <span>Updated {n.updatedAt}</span>
+                    </div>
+                  </button>
+                </SortableItem>
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       <NoteDetailModal
@@ -163,6 +235,7 @@ export function NotesPanel(props: { allTasks: TaskSummary[] }) {
               createdAt: saved.createdAt,
               updatedAt: saved.updatedAt,
               linkedTaskCount: 0,
+              sortOrder: 0,
             }
             return exists ? prev.map((n) => (n.id === saved.id ? { ...n, ...nextSummary } : n)) : [nextSummary, ...prev]
           })

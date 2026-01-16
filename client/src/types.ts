@@ -1,15 +1,19 @@
 export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'DONE'
+export type TaskPriority = 'HIGH' | 'MEDIUM' | 'LOW'
 
 export type TaskSummary = {
   id: number
   title: string
   notes: string
   status: TaskStatus
+  priority: TaskPriority | null
   dueDate: string | null
   tags: string[]
   createdAt: string
   subtaskTotal: number
   subtaskCompleted: number
+  sortOrder: number
+  archivedAt: string | null
 }
 
 export type LinkAttachment = {
@@ -34,6 +38,7 @@ export type NoteSummary = {
   createdAt: string
   updatedAt: string
   linkedTaskCount: number
+  sortOrder: number
 }
 
 export type NoteDetail = {

@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
+@variant dark (&:where(.dark, .dark *));
+
 @layer base {
   :root {
     color-scheme: light;
+  }
+
+  .dark {
+    color-scheme: dark;
   }
 
   html,
@@ -12,10 +18,120 @@
   }
 
   body {
-    @apply bg-zinc-50 text-slate-900 antialiased;
+    @apply bg-zinc-100 text-slate-900 antialiased;
+  }
+
+  .dark body {
+    @apply bg-gray-900 text-slate-100;
   }
 
   ::selection {
     @apply bg-slate-900 text-white;
   }
+
+  .dark ::selection {
+    @apply bg-indigo-500 text-white;
+  }
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.animate-slideIn {
+  animation: slideIn 0.2s ease-out;
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.15s ease-out;
+}
+
+/* Dark mode overrides - Tailwind v4 fallback */
+.dark .bg-white {
+  background-color: rgb(31 41 55) !important;
+}
+
+.dark .border-zinc-200 {
+  border-color: rgb(63 63 70) !important;
+}
+
+.dark .text-slate-900 {
+  color: rgb(241 245 249) !important;
+}
+
+.dark .text-slate-700 {
+  color: rgb(203 213 225) !important;
+}
+
+.dark .text-slate-600 {
+  color: rgb(156 163 175) !important;
+}
+
+.dark .text-slate-500 {
+  color: rgb(148 163 184) !important;
+}
+
+.dark .bg-zinc-100 {
+  background-color: rgb(55 65 81) !important;
+}
+
+.dark .bg-zinc-50 {
+  background-color: rgb(31 41 55) !important;
+}
+
+.dark .hover\:bg-zinc-50:hover {
+  background-color: rgb(55 65 81) !important;
+}
+
+/* Scrollbar styling */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: rgb(31 41 55);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgb(75 85 99);
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgb(107 114 128);
 }

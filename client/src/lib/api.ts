@@ -1,4 +1,4 @@
-import type { LinkAttachment, NoteDetail, NoteSummary, Reminder, Subtask, TaskDetail, TaskStatus, TaskSummary } from '../types'
+import type { LinkAttachment, NoteDetail, NoteSummary, Reminder, Subtask, TaskDetail, TaskPriority, TaskStatus, TaskSummary } from '../types'
 
 async function api<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   let res: Response
@@ -33,11 +33,30 @@ async function api<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> 
   return data as T
 }
 
-export function listTasks(params?: { status?: TaskStatus | 'ALL'; tag?: string | 'ALL' }) {
+export function listTasks(params?: { status?: TaskStatus | 'ALL'; tag?: string | 'ALL'; includeArchived?: boolean }) {
   const url = new URL('/api/tasks', window.location.origin)
   if (params?.status && params.status !== 'ALL') url.searchParams.set('status', params.status)
   if (params?.tag && params.tag !== 'ALL') url.searchParams.set('tag', params.tag)
+  if (params?.includeArchived) url.searchParams.set('includeArchived', '1')
   return api<TaskSummary[]>(url)
+}
+
+export function listArchivedTasks(search?: string) {
+  const url = new URL('/api/tasks/archived', window.location.origin)
+  if (search?.trim()) url.searchParams.set('search', search.trim())
+  return api<TaskSummary[]>(url)
+}
+
+export function archiveTask(id: number) {
+  return api<TaskSummary>(`/api/tasks/${id}/archive`, { method: 'POST' })
+}
+
+export function unarchiveTask(id: number) {
+  return api<TaskSummary>(`/api/tasks/${id}/unarchive`, { method: 'POST' })
+}
+
+export function reorderTasks(items: { id: number; sortOrder: number }[]) {
+  return api<{ ok: boolean }>('/api/tasks/reorder', { method: 'PUT', body: JSON.stringify({ items }) })
 }
 
 export function getTask(id: number) {
@@ -48,6 +67,7 @@ export function createTask(input: {
   title: string
   notes?: string
   status?: TaskStatus
+  priority?: TaskPriority | null
   dueDate?: string | null
   tags?: string[]
 }) {
@@ -60,6 +80,7 @@ export function updateTask(
     title?: string
     notes?: string
     status?: TaskStatus
+    priority?: TaskPriority | null
     dueDate?: string | null
     tags?: string[]
   }
@@ -86,6 +107,10 @@ export function deleteSubtask(id: number) {
 // ---- Notes ----
 export function listNotes() {
   return api<NoteSummary[]>('/api/notes')
+}
+
+export function reorderNotes(items: { id: number; sortOrder: number }[]) {
+  return api<{ ok: boolean }>('/api/notes/reorder', { method: 'PUT', body: JSON.stringify({ items }) })
 }
 
 export function getNote(id: number) {
@@ -120,7 +145,7 @@ export function unlinkTaskFromNote(noteId: number, taskId: number) {
 
 export function createTaskFromNote(
   noteId: number,
-  input: { title?: string; notes?: string; status?: TaskStatus; dueDate?: string | null; tags?: string[] }
+  input: { title?: string; notes?: string; status?: TaskStatus; priority?: TaskPriority | null; dueDate?: string | null; tags?: string[] }
 ) {
   return api<TaskSummary>(`/api/notes/${noteId}/create-task`, { method: 'POST', body: JSON.stringify(input) })
 }

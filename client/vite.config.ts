@@ -8,6 +8,7 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    host: true, // Expose on local network for mobile access
     proxy: {
       '/api': {
         // Use 127.0.0.1 to avoid occasional Windows localhost/IPv6 resolution issues.
