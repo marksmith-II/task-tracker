@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { Circle, Loader2, CheckCircle2, Plus } from 'lucide-react'
 import type { TaskStatus, TaskSummary } from '../types'
 import { cn } from '../lib/cn'
-import { priorityStyles, getDueDateStatus, dueDateStyles, formatDueDate } from './taskStatus'
+import { priorityStyles, getDueDateStatus, dueDateStyles, formatDueDate, getOverdueLevel, overdueCardStyles } from './taskStatus'
 import { updateTask } from '../lib/api'
 import {
   DndContext,
@@ -203,6 +203,19 @@ function KanbanCard(props: { task: TaskSummary; onOpen: () => void }) {
   const dueDateStatus = getDueDateStatus(task.dueDate)
   const dueStyles = dueDateStyles(dueDateStatus)
 
+  // Get overdue level for escalating visual urgency (only for non-DONE tasks)
+  const overdueLevel = task.status !== 'DONE' ? getOverdueLevel(task.dueDate) : 0
+  const overdueStyles = overdueCardStyles(overdueLevel)
+
+  // Determine card background and border based on overdue status
+  const cardBackground = overdueLevel > 0
+    ? overdueStyles.background
+    : 'bg-white dark:bg-gray-800'
+
+  const cardBorder = overdueLevel > 0
+    ? overdueStyles.border
+    : 'border-zinc-200 dark:border-zinc-600'
+
   return (
     <div
       ref={setNodeRef}
@@ -211,12 +224,14 @@ function KanbanCard(props: { task: TaskSummary; onOpen: () => void }) {
       {...listeners}
       onClick={onOpen}
       className={cn(
-        'group relative rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-800 p-3 shadow-sm cursor-pointer transition-all',
+        'group relative rounded-xl border p-3 shadow-sm cursor-pointer transition-all',
+        cardBackground,
+        cardBorder,
         'hover:shadow-md hover:border-zinc-300 dark:hover:border-zinc-500',
         isDragging && 'opacity-50 shadow-lg scale-105',
-        task.priority === 'HIGH' && task.status !== 'DONE' && 'border-l-4 border-l-rose-400',
-        task.priority === 'MEDIUM' && task.status !== 'DONE' && 'border-l-4 border-l-amber-400',
-        task.priority === 'LOW' && task.status !== 'DONE' && 'border-l-4 border-l-sky-400'
+        task.priority === 'HIGH' && task.status !== 'DONE' && overdueLevel === 0 && 'border-l-4 border-l-rose-400',
+        task.priority === 'MEDIUM' && task.status !== 'DONE' && overdueLevel === 0 && 'border-l-4 border-l-amber-400',
+        task.priority === 'LOW' && task.status !== 'DONE' && overdueLevel === 0 && 'border-l-4 border-l-sky-400'
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -261,13 +276,28 @@ function KanbanCardOverlay(props: { task: TaskSummary }) {
   const { task } = props
   const pStyles = task.priority ? priorityStyles(task.priority) : null
 
+  // Get overdue level for escalating visual urgency (only for non-DONE tasks)
+  const overdueLevel = task.status !== 'DONE' ? getOverdueLevel(task.dueDate) : 0
+  const overdueStyles = overdueCardStyles(overdueLevel)
+
+  // Determine card background and border based on overdue status
+  const cardBackground = overdueLevel > 0
+    ? overdueStyles.background
+    : 'bg-white dark:bg-gray-800'
+
+  const cardBorder = overdueLevel > 0
+    ? overdueStyles.border
+    : 'border-zinc-200 dark:border-zinc-600'
+
   return (
     <div
       className={cn(
-        'rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-800 p-3 shadow-xl cursor-grabbing',
-        task.priority === 'HIGH' && task.status !== 'DONE' && 'border-l-4 border-l-rose-400',
-        task.priority === 'MEDIUM' && task.status !== 'DONE' && 'border-l-4 border-l-amber-400',
-        task.priority === 'LOW' && task.status !== 'DONE' && 'border-l-4 border-l-sky-400'
+        'rounded-xl border p-3 shadow-xl cursor-grabbing',
+        cardBackground,
+        cardBorder,
+        task.priority === 'HIGH' && task.status !== 'DONE' && overdueLevel === 0 && 'border-l-4 border-l-rose-400',
+        task.priority === 'MEDIUM' && task.status !== 'DONE' && overdueLevel === 0 && 'border-l-4 border-l-amber-400',
+        task.priority === 'LOW' && task.status !== 'DONE' && overdueLevel === 0 && 'border-l-4 border-l-sky-400'
       )}
     >
       <div className="flex items-start justify-between gap-2">

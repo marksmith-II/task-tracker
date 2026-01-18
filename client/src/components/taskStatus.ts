@@ -98,6 +98,65 @@ export function getDueDateStatus(dueDate: string | null): DueDateStatus {
   return 'upcoming'
 }
 
+// Calculate how many days a task is overdue (0 if not overdue)
+export function getOverdueDays(dueDate: string | null): number {
+  if (!dueDate) return 0
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const due = new Date(dueDate)
+  due.setHours(0, 0, 0, 0)
+
+  const diffDays = Math.floor((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24))
+
+  return diffDays > 0 ? diffDays : 0
+}
+
+// Overdue level for escalating visual urgency (1, 2, or 3+)
+export type OverdueLevel = 0 | 1 | 2 | 3
+
+export function getOverdueLevel(dueDate: string | null): OverdueLevel {
+  const days = getOverdueDays(dueDate)
+  if (days === 0) return 0
+  if (days === 1) return 1
+  if (days === 2) return 2
+  return 3 // 3+ days overdue
+}
+
+// Escalating styles for overdue task cards/rows
+export function overdueCardStyles(level: OverdueLevel) {
+  switch (level) {
+    case 1:
+      // 1 day overdue - subtle warning (light rose background)
+      return {
+        background: 'bg-rose-50/60 dark:bg-rose-950/30',
+        border: 'border-rose-200 dark:border-rose-800/60',
+        ring: 'ring-rose-200/50 dark:ring-rose-800/50',
+      }
+    case 2:
+      // 2 days overdue - more pronounced (medium rose background)
+      return {
+        background: 'bg-rose-100/70 dark:bg-rose-950/50',
+        border: 'border-rose-300 dark:border-rose-700/70',
+        ring: 'ring-rose-300/60 dark:ring-rose-700/60',
+      }
+    case 3:
+      // 3+ days overdue - most urgent (strong rose/red background)
+      return {
+        background: 'bg-rose-200/80 dark:bg-rose-900/60',
+        border: 'border-rose-400 dark:border-rose-600',
+        ring: 'ring-rose-400/70 dark:ring-rose-600/70',
+      }
+    default:
+      return {
+        background: '',
+        border: '',
+        ring: '',
+      }
+  }
+}
+
 export function dueDateStyles(status: DueDateStatus) {
   switch (status) {
     case 'overdue':

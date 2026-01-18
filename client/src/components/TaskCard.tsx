@@ -2,7 +2,7 @@ import { Calendar } from 'lucide-react'
 import type { TaskSummary } from '../types'
 import { cn } from '../lib/cn'
 import { TagBadge } from './TagBadge'
-import { statusLabel, statusStyles, priorityStyles, getDueDateStatus, dueDateStyles, formatDueDate } from './taskStatus'
+import { statusLabel, statusStyles, priorityStyles, getDueDateStatus, dueDateStyles, formatDueDate, getOverdueLevel, overdueCardStyles } from './taskStatus'
 
 export function TaskCard(props: { task: TaskSummary; onOpen: () => void; index?: number }) {
   const { task, index = 0 } = props
@@ -16,15 +16,26 @@ export function TaskCard(props: { task: TaskSummary; onOpen: () => void; index?:
   const dueDateStatus = getDueDateStatus(task.dueDate)
   const dueStyles = dueDateStyles(dueDateStatus)
 
+  // Get overdue level for escalating visual urgency (only for non-DONE tasks)
+  const overdueLevel = task.status !== 'DONE' ? getOverdueLevel(task.dueDate) : 0
+  const overdueStyles = overdueCardStyles(overdueLevel)
+
   const progressText =
     task.subtaskTotal > 0 ? `${Math.min(task.subtaskCompleted, task.subtaskTotal)}/${task.subtaskTotal}` : null
 
-  // Determine card border based on priority for visual urgency
-  const cardBorder = task.priority === 'HIGH' && task.status !== 'DONE'
-    ? 'border-rose-300/70'
-    : task.priority === 'MEDIUM' && task.status !== 'DONE'
-      ? 'border-amber-200/70'
-      : styles.border
+  // Determine card border based on overdue status first, then priority
+  const cardBorder = overdueLevel > 0
+    ? overdueStyles.border
+    : task.priority === 'HIGH' && task.status !== 'DONE'
+      ? 'border-rose-300/70'
+      : task.priority === 'MEDIUM' && task.status !== 'DONE'
+        ? 'border-amber-200/70'
+        : styles.border
+
+  // Determine card background - overdue styling takes precedence
+  const cardBackground = overdueLevel > 0
+    ? overdueStyles.background
+    : isEven ? 'bg-white dark:bg-gray-800' : 'bg-slate-50/60 dark:bg-gray-800/60'
 
   return (
     <button
@@ -33,7 +44,7 @@ export function TaskCard(props: { task: TaskSummary; onOpen: () => void; index?:
       className={cn(
         'group relative w-full rounded-2xl border p-4 text-left shadow-sm transition-all duration-200',
         'hover:-translate-y-0.5 hover:shadow-md active:scale-[0.98]',
-        isEven ? 'bg-white dark:bg-gray-800' : 'bg-slate-50/60 dark:bg-gray-800/60',
+        cardBackground,
         cardBorder,
         'dark:border-zinc-700'
       )}
