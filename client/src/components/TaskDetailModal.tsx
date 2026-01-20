@@ -19,6 +19,7 @@ import {
 } from '../lib/api'
 import { TagInput } from './TagInput'
 import { LinkAttachmentsSection } from './LinkAttachments'
+import { RichTextEditor } from './RichTextEditor'
 
 export function TaskDetailModal(props: {
   open: boolean
@@ -203,16 +204,14 @@ export function TaskDetailModal(props: {
             </div>
           </div>
 
-          <label className="mt-3 grid gap-1">
+          <div className="mt-3 grid gap-1">
             <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Notes</span>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={5}
-              className="resize-none rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400 dark:focus:border-slate-500 focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-slate-500/20"
-              placeholder="Optional details…"
+            <RichTextEditor
+              content={notes}
+              onChange={setNotes}
+              placeholder="Optional details... (Paste images with Ctrl+V)"
             />
-          </label>
+          </div>
 
           <div className="mt-4">
             <div className="mb-2">

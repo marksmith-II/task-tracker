@@ -6,7 +6,7 @@ const crypto = require('crypto')
 const { db, DB_PATH, safeParseTags, normalizeTags } = require('./db')
 
 const app = express()
-app.use(express.json({ limit: '1mb' }))
+app.use(express.json({ limit: '50mb' }))
 
 const DATA_DIR = path.join(__dirname, 'data')
 const SCREENSHOT_DIR = path.join(DATA_DIR, 'link-screenshots')
@@ -46,9 +46,25 @@ function toTaskSummary(row) {
   }
 }
 
+function stripHtmlTags(html) {
+  if (!html) return ''
+  // Remove HTML tags and decode common entities
+  return html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function toNoteSummary(row) {
   const body = typeof row.body === 'string' ? row.body : ''
-  const excerpt = body.trim().replace(/\s+/g, ' ').slice(0, 180)
+  const plainText = stripHtmlTags(body)
+  const excerpt = plainText.slice(0, 180)
   return {
     id: row.id,
     title: row.title,

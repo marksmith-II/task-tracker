@@ -13,6 +13,7 @@ import {
   updateNote,
 } from '../lib/api'
 import { LinkAttachmentsSection } from './LinkAttachments'
+import { RichTextEditor } from './RichTextEditor'
 
 export function NoteDetailModal(props: {
   open: boolean
@@ -118,16 +119,14 @@ export function NoteDetailModal(props: {
             />
           </label>
 
-          <label className="mt-3 grid gap-1">
+          <div className="mt-3 grid gap-1">
             <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Body</span>
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              rows={10}
-              className="resize-none rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400 dark:focus:border-slate-500 focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-slate-500/20"
-              placeholder="Write your note…"
+            <RichTextEditor
+              content={body}
+              onChange={setBody}
+              placeholder="Write your note... (Paste images with Ctrl+V)"
             />
-          </label>
+          </div>
 
           <div className="mt-5 border-t border-zinc-200 dark:border-zinc-700 pt-4">
             <div className="flex items-center justify-between gap-3">

@@ -96,13 +96,22 @@ export function NotesPanel(props: {
     try {
       const detail = await getNote(id)
       setSelected((prev) => (prev?.id === id ? detail : prev))
+      // Strip HTML tags for excerpt
+      const plainText = detail.body
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/\s+/g, ' ')
+        .trim()
       setNotes((prev) =>
         prev.map((n) =>
           n.id === id
             ? {
                 ...n,
                 title: detail.title,
-                excerpt: detail.body.trim().replace(/\s+/g, ' ').slice(0, 180),
+                excerpt: plainText.slice(0, 180),
                 updatedAt: detail.updatedAt,
                 linkedTaskCount: detail.linkedTasks.length,
               }
