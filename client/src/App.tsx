@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import type { TaskDetail, TaskPriority, TaskStatus, TaskSummary } from './types'
-import { getTask, listDueReminders, listTasks, reorderTasks } from './lib/api'
+import { getTask, listDueReminders, listTasks, reorderTasks, updateTask } from './lib/api'
 import { Header, type ViewMode } from './components/Header'
 import { TaskCard } from './components/TaskCard'
 import { TaskRow } from './components/TaskRow'
@@ -14,6 +14,7 @@ import { KanbanBoard } from './components/KanbanBoard'
 import { Dashboard, type DashboardFilter } from './components/Dashboard'
 import { EmptyState } from './components/EmptyState'
 import { getDueDateStatus } from './components/taskStatus'
+import { MultiSelectFilter, type FilterOption } from './components/MultiSelectFilter'
 import { cn } from './lib/cn'
 import {
   DndContext,
@@ -37,15 +38,35 @@ function toSummary(detail: TaskDetail): TaskSummary {
   return summary
 }
 
+// Filter options for multi-select dropdowns
+const statusOptions: FilterOption<TaskStatus>[] = [
+  { value: 'TODO', label: 'Todo' },
+  { value: 'IN_PROGRESS', label: 'In Progress' },
+  { value: 'DONE', label: 'Done' },
+]
+
+const priorityOptions: FilterOption<TaskPriority>[] = [
+  { value: 'HIGH', label: 'High', icon: '🔴' },
+  { value: 'MEDIUM', label: 'Medium', icon: '🟡' },
+  { value: 'LOW', label: 'Low', icon: '🟢' },
+]
+
+const dueOptions: FilterOption<'overdue' | 'today' | 'soon'>[] = [
+  { value: 'overdue', label: 'Overdue', icon: '🔴' },
+  { value: 'today', label: 'Due Today', icon: '🟡' },
+  { value: 'soon', label: 'Due Soon', icon: '🟠' },
+]
+
 export default function App() {
   const [tasks, setTasks] = useState<TaskSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'ALL'>('ALL')
-  const [priorityFilter, setPriorityFilter] = useState<TaskPriority | 'ALL'>('ALL')
+  // Multi-select filters - empty array means "all"
+  const [statusFilter, setStatusFilter] = useState<TaskStatus[]>([])
+  const [priorityFilter, setPriorityFilter] = useState<TaskPriority[]>([])
+  const [dueStatusFilter, setDueStatusFilter] = useState<('overdue' | 'today' | 'soon')[]>([])
   const [tagFilter, setTagFilter] = useState<string | 'ALL'>('ALL')
-  const [dueStatusFilter, setDueStatusFilter] = useState<'overdue' | 'today' | 'soon' | 'ALL'>('ALL')
 
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const raw = window.localStorage.getItem('tt:viewMode')
@@ -80,7 +101,15 @@ export default function App() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [allNotes, setAllNotes] = useState<{ id: number; title: string; excerpt: string; createdAt: string; updatedAt: string; linkedTaskCount: number; sortOrder: number }[]>([])
 
-  async function refreshTasks() {
+  const pushToast = useCallback((title: string, message: string) => {
+    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    setToasts((prev) => [{ id, title, message }, ...prev].slice(0, 5))
+    window.setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id))
+    }, 10000)
+  }, [])
+
+  const refreshTasks = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -91,7 +120,23 @@ export default function App() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  const changeDueDate = useCallback(
+    async (taskId: number, nextDueDate: string | null) => {
+      // Optimistic update
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, dueDate: nextDueDate } : t)))
+      try {
+        const saved = await updateTask(taskId, { dueDate: nextDueDate })
+        setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...saved } : t)))
+      } catch (err) {
+        pushToast('Failed to update due date', err instanceof Error ? err.message : 'Failed to update due date')
+        // Best-effort reconcile
+        refreshTasks()
+      }
+    },
+    [pushToast, refreshTasks]
+  )
 
   async function openTask(id: number) {
     setError(null)
@@ -127,8 +172,7 @@ export default function App() {
         // ignore
       }
     })()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [refreshTasks])
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -217,14 +261,16 @@ export default function App() {
 
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
-      if (statusFilter !== 'ALL' && t.status !== statusFilter) return false
-      if (priorityFilter !== 'ALL' && t.priority !== priorityFilter) return false
+      // Status filter - empty array means all
+      if (statusFilter.length > 0 && !statusFilter.includes(t.status)) return false
+      // Priority filter - empty array means all
+      if (priorityFilter.length > 0 && !priorityFilter.includes(t.priority as TaskPriority)) return false
+      // Tag filter
       if (tagFilter !== 'ALL' && !t.tags.includes(tagFilter)) return false
-      if (dueStatusFilter !== 'ALL') {
+      // Due status filter - empty array means all
+      if (dueStatusFilter.length > 0) {
         const dueStatus = getDueDateStatus(t.dueDate)
-        if (dueStatusFilter === 'overdue' && dueStatus !== 'overdue') return false
-        if (dueStatusFilter === 'today' && dueStatus !== 'today') return false
-        if (dueStatusFilter === 'soon' && dueStatus !== 'soon') return false
+        if (!dueStatusFilter.includes(dueStatus as 'overdue' | 'today' | 'soon')) return false
       }
       return true
     })
@@ -281,6 +327,7 @@ export default function App() {
         onShowShortcuts={() => setShortcutsOpen(true)}
         viewMode={viewMode}
         onChangeViewMode={setViewMode}
+        viewModeEnabled={tab !== 'notes'}
       />
 
       <main className="mx-auto max-w-6xl px-4 py-6">
@@ -341,14 +388,14 @@ export default function App() {
               onOpenTask={(id) => openTask(id)}
               onNavigateToTasks={(filter?: DashboardFilter) => {
                 // Reset all filters first
-                setStatusFilter('ALL')
-                setPriorityFilter('ALL')
-                setDueStatusFilter('ALL')
+                setStatusFilter([])
+                setPriorityFilter([])
+                setDueStatusFilter([])
                 
-                // Apply the requested filter
-                if (filter?.status) setStatusFilter(filter.status)
-                if (filter?.priority) setPriorityFilter(filter.priority)
-                if (filter?.dueStatus) setDueStatusFilter(filter.dueStatus)
+                // Apply the requested filter (single value from dashboard becomes array with one item)
+                if (filter?.status) setStatusFilter([filter.status])
+                if (filter?.priority) setPriorityFilter([filter.priority])
+                if (filter?.dueStatus) setDueStatusFilter([filter.dueStatus])
                 
                 // Navigate to tasks tab
                 setTab('tasks')
@@ -371,34 +418,20 @@ export default function App() {
                   </p>
                 </div>
 
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <label className="grid gap-1">
-                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Status</span>
-                    <select
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value as TaskStatus | 'ALL')}
-                      className="h-10 rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400 dark:focus:border-slate-500 focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-slate-500/20"
-                    >
-                      <option value="ALL">All</option>
-                      <option value="TODO">Todo</option>
-                      <option value="IN_PROGRESS">In Progress</option>
-                      <option value="DONE">Done</option>
-                    </select>
-                  </label>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <MultiSelectFilter<TaskStatus>
+                    label="Status"
+                    options={statusOptions}
+                    selected={statusFilter}
+                    onChange={setStatusFilter}
+                  />
 
-                  <label className="grid gap-1">
-                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Priority</span>
-                    <select
-                      value={priorityFilter}
-                      onChange={(e) => setPriorityFilter(e.target.value as TaskPriority | 'ALL')}
-                      className="h-10 rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400 dark:focus:border-slate-500 focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-slate-500/20"
-                    >
-                      <option value="ALL">All</option>
-                      <option value="HIGH">🔴 High</option>
-                      <option value="MEDIUM">🟡 Medium</option>
-                      <option value="LOW">🟢 Low</option>
-                    </select>
-                  </label>
+                  <MultiSelectFilter<TaskPriority>
+                    label="Priority"
+                    options={priorityOptions}
+                    selected={priorityFilter}
+                    onChange={setPriorityFilter}
+                  />
 
                   <label className="grid gap-1">
                     <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Tag</span>
@@ -416,19 +449,12 @@ export default function App() {
                     </select>
                   </label>
 
-                  <label className="grid gap-1">
-                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Due</span>
-                    <select
-                      value={dueStatusFilter}
-                      onChange={(e) => setDueStatusFilter(e.target.value as 'overdue' | 'today' | 'soon' | 'ALL')}
-                      className="h-10 rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400 dark:focus:border-slate-500 focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-slate-500/20"
-                    >
-                      <option value="ALL">All</option>
-                      <option value="overdue">🔴 Overdue</option>
-                      <option value="today">🟡 Due Today</option>
-                      <option value="soon">🟠 Due Soon</option>
-                    </select>
-                  </label>
+                  <MultiSelectFilter<'overdue' | 'today' | 'soon'>
+                    label="Due"
+                    options={dueOptions}
+                    selected={dueStatusFilter}
+                    onChange={setDueStatusFilter}
+                  />
                 </div>
               </div>
 
@@ -472,6 +498,7 @@ export default function App() {
                         prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
                       )
                     }}
+                    onTaskDueDateChange={changeDueDate}
                   />
                 </div>
               ) : viewMode === 'cards' ? (
@@ -484,7 +511,7 @@ export default function App() {
                     <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 pl-6">
                       {filtered.map((t, index) => (
                         <SortableItem key={t.id} id={t.id}>
-                          <TaskCard task={t} onOpen={() => openTask(t.id)} index={index} />
+                          <TaskCard task={t} onOpen={() => openTask(t.id)} onChangeDueDate={(d) => changeDueDate(t.id, d)} index={index} />
                         </SortableItem>
                       ))}
                     </div>
@@ -500,7 +527,7 @@ export default function App() {
                     <div className="mt-5 space-y-2 pl-6">
                       {filtered.map((t, index) => (
                         <SortableItem key={t.id} id={t.id}>
-                          <TaskRow task={t} onOpen={() => openTask(t.id)} index={index} />
+                          <TaskRow task={t} onOpen={() => openTask(t.id)} onChangeDueDate={(d) => changeDueDate(t.id, d)} index={index} />
                         </SortableItem>
                       ))}
                     </div>
@@ -510,9 +537,27 @@ export default function App() {
             </div>
           ) : tab === 'notes' ? (
             <NotesPanel 
-              allTasks={tasks} 
               openModalFromHeader={noteModalOpen}
               onModalOpened={() => setNoteModalOpen(false)}
+              allTasks={tasks}
+              onTaskCreated={(created) => {
+                setTasks((prev) => {
+                  const exists = prev.some((t) => t.id === created.id)
+                  const next = exists ? prev.map((t) => (t.id === created.id ? created : t)) : [created, ...prev]
+                  return next.sort((a, b) => {
+                    const so = (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+                    if (so !== 0) return so
+                    const at = Date.parse(a.createdAt)
+                    const bt = Date.parse(b.createdAt)
+                    if (Number.isFinite(at) && Number.isFinite(bt) && at !== bt) return bt - at
+                    return b.id - a.id
+                  })
+                })
+
+                // Take the user directly into the new task details.
+                setTab('tasks')
+                void openTask(created.id)
+              }}
             />
           ) : null}
         </div>
@@ -555,9 +600,10 @@ export default function App() {
           setSearchOpen(false)
           openTask(id)
         }}
-        onOpenNote={(id) => {
+        onOpenNote={(noteId) => {
           setSearchOpen(false)
           setTab('notes')
+          void noteId
           // TODO: Open note detail modal
         }}
       />

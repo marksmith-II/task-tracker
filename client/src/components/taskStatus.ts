@@ -81,14 +81,19 @@ export function priorityStyles(priority: TaskPriority | null) {
 // Due date intelligence
 export type DueDateStatus = 'overdue' | 'today' | 'soon' | 'upcoming' | 'none'
 
+// Parse a date string (YYYY-MM-DD) as local date to avoid timezone issues
+function parseLocalDate(dateString: string): Date {
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
 export function getDueDateStatus(dueDate: string | null): DueDateStatus {
   if (!dueDate) return 'none'
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  const due = new Date(dueDate)
-  due.setHours(0, 0, 0, 0)
+  const due = parseLocalDate(dueDate)
 
   const diffDays = Math.floor((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
 
@@ -105,8 +110,7 @@ export function getOverdueDays(dueDate: string | null): number {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  const due = new Date(dueDate)
-  due.setHours(0, 0, 0, 0)
+  const due = parseLocalDate(dueDate)
 
   const diffDays = Math.floor((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24))
 
@@ -191,11 +195,9 @@ export function dueDateStyles(status: DueDateStatus) {
 }
 
 export function formatDueDate(dueDate: string): string {
-  const date = new Date(dueDate)
+  const due = parseLocalDate(dueDate)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const due = new Date(dueDate)
-  due.setHours(0, 0, 0, 0)
 
   const diffDays = Math.floor((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
 
@@ -203,8 +205,8 @@ export function formatDueDate(dueDate: string): string {
   if (diffDays === 1) return 'Tomorrow'
   if (diffDays === -1) return 'Yesterday'
   if (diffDays > 0 && diffDays < 7) {
-    return date.toLocaleDateString('en-US', { weekday: 'long' })
+    return due.toLocaleDateString('en-US', { weekday: 'long' })
   }
 
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }

@@ -1,5 +1,5 @@
 import { Plus, Save, Trash2, X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { LinkAttachment, NoteDetail, TaskSummary, TaskStatus } from '../types'
 import { cn } from '../lib/cn'
 import {
@@ -18,7 +18,8 @@ import { RichTextEditor } from './RichTextEditor'
 export function NoteDetailModal(props: {
   open: boolean
   note: NoteDetail | null
-  allTasks: TaskSummary[]
+  onTaskCreated?: (task: TaskSummary) => void
+  availableTasks?: TaskSummary[]
   onClose: () => void
   onUpsertSummary: (note: { id: number; title: string; updatedAt: string; createdAt: string }) => void
   onDeleted: (id: number) => void
@@ -30,7 +31,9 @@ export function NoteDetailModal(props: {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [linkedTasks, setLinkedTasks] = useState<TaskSummary[]>([])
-  const [taskToLinkId, setTaskToLinkId] = useState<number | ''>('')
+  const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [existingTaskQuery, setExistingTaskQuery] = useState('')
+  const [existingTaskId, setExistingTaskId] = useState<number | ''>('')
   const [links, setLinks] = useState<LinkAttachment[]>([])
 
   const [busy, setBusy] = useState(false)
@@ -42,17 +45,18 @@ export function NoteDetailModal(props: {
     if (!open) return
     setError(null)
     setBusy(false)
-    setTaskToLinkId('')
+    setNewTaskTitle('')
+    setExistingTaskQuery('')
+    setExistingTaskId('')
 
     const nextId = note?.id ?? null
     if (initializedForNoteId.current !== nextId) {
       initializedForNoteId.current = nextId
       setTitle(note?.title ?? '')
       setBody(note?.body ?? '')
+      setLinkedTasks(note?.linkedTasks ?? [])
+      setLinks(note?.links ?? [])
     }
-
-    setLinkedTasks(note?.linkedTasks ?? [])
-    setLinks(note?.links ?? [])
   }, [open, note?.id, note?.linkedTasks, note?.links])
 
   useEffect(() => {
@@ -68,15 +72,21 @@ export function NoteDetailModal(props: {
     }
   }, [open, props.onClose])
 
-  const availableTasks = useMemo(() => {
-    const linkedIds = new Set(linkedTasks.map((t) => t.id))
-    return props.allTasks.filter((t) => !linkedIds.has(t.id))
-  }, [linkedTasks, props.allTasks])
+  const canCreateTasks = Boolean(note?.id)
 
   if (!open) return null
 
   const canEditLinks = Boolean(note?.id)
   const canEditTaskLinks = Boolean(note?.id)
+
+  const availableToLink = (props.availableTasks ?? [])
+    .filter((t) => !linkedTasks.some((x) => x.id === t.id))
+    .filter((t) => {
+      const q = existingTaskQuery.trim().toLowerCase()
+      if (!q) return true
+      return t.title.toLowerCase().includes(q)
+    })
+    .slice(0, 100)
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
@@ -91,7 +101,7 @@ export function NoteDetailModal(props: {
         <div className="flex items-center justify-between gap-3 border-b border-zinc-200 dark:border-zinc-700 px-4 py-3">
           <div className="min-w-0">
             <h2 className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{isNew ? 'New Note' : 'Note'}</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Write notes, link tasks, and attach links.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Write notes, create tasks, and attach links.</p>
           </div>
 
           <button
@@ -132,38 +142,139 @@ export function NoteDetailModal(props: {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-medium text-slate-700 dark:text-slate-300">Linked tasks</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Connect tasks to this note (or create one).</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Create a new task from this note, or link an existing task.</p>
               </div>
-              {note?.id ? (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (!note) return
-                    setError(null)
-                    try {
-                      const created = await createTaskFromNote(note.id, { title: title.trim() || 'New task from note', status: 'TODO' as TaskStatus })
-                      // Refresh note (so the new task appears linked) and also let the parent update task list if desired.
-                      await props.onRequestRefresh(note.id)
-                      setLinkedTasks((prev) => [created, ...prev])
-                    } catch (err) {
-                      setError(err instanceof Error ? err.message : 'Failed to create task')
-                    }
-                  }}
-                  className="inline-flex items-center gap-2 rounded-xl bg-slate-900 dark:bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:hover:bg-indigo-500"
-                  disabled={busy}
-                >
-                  <Plus className="h-4 w-4" />
-                  Create Task
-                </button>
-              ) : null}
             </div>
 
             {!canEditTaskLinks ? (
               <div className="mt-2 rounded-xl border border-zinc-200 dark:border-zinc-600 bg-zinc-50 dark:bg-gray-700/50 px-3 py-2 text-sm text-slate-600 dark:text-slate-400">
-                Save this note first to link tasks.
+                Save this note first to create tasks.
               </div>
             ) : (
               <>
+                <div className="mt-3 flex gap-2">
+                  <input
+                    value={newTaskTitle}
+                    onChange={(e) => setNewTaskTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter') return
+                      e.preventDefault()
+                      ;(async () => {
+                        if (!note) return
+                        const t = newTaskTitle.trim() || title.trim() || 'New task from note'
+                        setBusy(true)
+                        setError(null)
+                        try {
+                          const created = await createTaskFromNote(note.id, { title: t, status: 'TODO' as TaskStatus })
+                          props.onTaskCreated?.(created)
+                          await props.onRequestRefresh(note.id)
+                          setLinkedTasks((prev) => [created, ...prev])
+                          setNewTaskTitle('')
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : 'Failed to create task')
+                        } finally {
+                          setBusy(false)
+                        }
+                      })()
+                    }}
+                    className="h-10 flex-1 rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400 dark:focus:border-slate-500 focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-slate-500/20"
+                    placeholder="New task title…"
+                    disabled={!canCreateTasks || busy}
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!note) return
+                      const t = newTaskTitle.trim() || title.trim() || 'New task from note'
+                      setBusy(true)
+                      setError(null)
+                      try {
+                        const created = await createTaskFromNote(note.id, { title: t, status: 'TODO' as TaskStatus })
+                        props.onTaskCreated?.(created)
+                        await props.onRequestRefresh(note.id)
+                        setLinkedTasks((prev) => [created, ...prev])
+                        setNewTaskTitle('')
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : 'Failed to create task')
+                      } finally {
+                        setBusy(false)
+                      }
+                    }}
+                    className="inline-flex h-10 items-center gap-2 rounded-xl bg-slate-900 dark:bg-indigo-600 px-3 text-sm font-medium text-white hover:bg-slate-800 dark:hover:bg-indigo-500"
+                    disabled={!canCreateTasks || busy}
+                    title="Create task (auto-linked)"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add
+                  </button>
+                </div>
+
+                <div className="mt-3 rounded-xl border border-zinc-200 dark:border-zinc-600 bg-zinc-50 dark:bg-gray-700/40 p-3">
+                  <p className="text-xs font-medium text-slate-700 dark:text-slate-300">Link existing task</p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    <label className="grid gap-1">
+                      <span className="text-xs text-slate-600 dark:text-slate-400">Search</span>
+                      <input
+                        value={existingTaskQuery}
+                        onChange={(e) => setExistingTaskQuery(e.target.value)}
+                        className="h-10 rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400 dark:focus:border-slate-500 focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-slate-500/20"
+                        placeholder="Type to filter tasks…"
+                        disabled={!canCreateTasks || busy}
+                      />
+                    </label>
+
+                    <label className="grid gap-1">
+                      <span className="text-xs text-slate-600 dark:text-slate-400">Task</span>
+                      <select
+                        value={existingTaskId === '' ? '' : String(existingTaskId)}
+                        onChange={(e) => setExistingTaskId(e.target.value ? Number(e.target.value) : '')}
+                        className="h-10 rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400 dark:focus:border-slate-500 focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-slate-500/20"
+                        disabled={!canCreateTasks || busy}
+                      >
+                        <option value="">
+                          {availableToLink.length ? 'Select a task…' : 'No matching tasks'}
+                        </option>
+                        {availableToLink.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.title}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-end">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!note) return
+                        if (!existingTaskId) return
+                        const taskId = existingTaskId
+                        setBusy(true)
+                        setError(null)
+                        try {
+                          await linkTaskToNote(note.id, taskId)
+                          const task = (props.availableTasks ?? []).find((t) => t.id === taskId)
+                          if (task) setLinkedTasks((prev) => [task, ...prev])
+                          await props.onRequestRefresh(note.id)
+                          setExistingTaskId('')
+                          setExistingTaskQuery('')
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : 'Failed to link task')
+                        } finally {
+                          setBusy(false)
+                        }
+                      }}
+                      className="inline-flex h-10 items-center gap-2 rounded-xl bg-white dark:bg-gray-800 px-3 text-sm font-medium text-slate-700 dark:text-slate-200 ring-1 ring-inset ring-zinc-200 dark:ring-zinc-600 hover:bg-zinc-100 dark:hover:bg-gray-700"
+                      disabled={!canCreateTasks || busy || existingTaskId === ''}
+                      title="Link selected task"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Link
+                    </button>
+                  </div>
+                </div>
+
                 <div className="mt-2 space-y-2">
                   {linkedTasks.length ? (
                     linkedTasks.map((t) => (
@@ -198,40 +309,6 @@ export function NoteDetailModal(props: {
                       No linked tasks yet.
                     </div>
                   )}
-                </div>
-
-                <div className="mt-3 flex gap-2">
-                  <select
-                    value={taskToLinkId}
-                    onChange={(e) => setTaskToLinkId(e.target.value ? Number(e.target.value) : '')}
-                    className="h-10 flex-1 rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400 dark:focus:border-slate-500 focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-slate-500/20"
-                  >
-                    <option value="">Link existing task…</option>
-                    {availableTasks.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.title}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!note || !taskToLinkId) return
-                      setError(null)
-                      try {
-                        await linkTaskToNote(note.id, taskToLinkId)
-                        const linked = props.allTasks.find((t) => t.id === taskToLinkId)
-                        if (linked) setLinkedTasks((prev) => [linked, ...prev])
-                        setTaskToLinkId('')
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : 'Failed to link task')
-                      }
-                    }}
-                    className="h-10 rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 text-sm font-medium text-slate-900 dark:text-slate-100 hover:bg-zinc-50 dark:hover:bg-gray-600"
-                    disabled={!taskToLinkId || busy}
-                  >
-                    Link
-                  </button>
                 </div>
               </>
             )}

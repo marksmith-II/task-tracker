@@ -2,6 +2,8 @@ import { useCallback } from 'react'
 import { Circle, Loader2, CheckCircle2, Plus } from 'lucide-react'
 import type { TaskStatus, TaskSummary } from '../types'
 import { cn } from '../lib/cn'
+import { htmlToPlainText } from '../lib/text'
+import { DueDateInlinePill } from './DueDateInlinePill'
 import { priorityStyles, getDueDateStatus, dueDateStyles, formatDueDate, getOverdueLevel, overdueCardStyles } from './taskStatus'
 import { updateTask } from '../lib/api'
 import {
@@ -36,8 +38,9 @@ export function KanbanBoard(props: {
   onOpenTask: (id: number) => void
   onNewTask: () => void
   onTaskStatusChange: (taskId: number, newStatus: TaskStatus) => void
+  onTaskDueDateChange?: (taskId: number, nextDueDate: string | null) => void | Promise<void>
 }) {
-  const { tasks, onOpenTask, onNewTask, onTaskStatusChange } = props
+  const { tasks, onOpenTask, onNewTask, onTaskStatusChange, onTaskDueDateChange } = props
   const [activeTask, setActiveTask] = useState<TaskSummary | null>(null)
 
   const sensors = useSensors(
@@ -111,6 +114,7 @@ export function KanbanBoard(props: {
               tasks={columnTasks}
               onOpenTask={onOpenTask}
               onNewTask={column.id === 'TODO' ? onNewTask : undefined}
+              onTaskDueDateChange={onTaskDueDateChange}
             />
           )
         })}
@@ -128,6 +132,7 @@ function KanbanColumn(props: {
   tasks: TaskSummary[]
   onOpenTask: (id: number) => void
   onNewTask?: () => void
+  onTaskDueDateChange?: (taskId: number, nextDueDate: string | null) => void | Promise<void>
 }) {
   const { column, tasks, onOpenTask, onNewTask } = props
   const Icon = column.icon
@@ -173,7 +178,12 @@ function KanbanColumn(props: {
             </div>
           ) : (
             tasks.map((task) => (
-              <KanbanCard key={task.id} task={task} onOpen={() => onOpenTask(task.id)} />
+              <KanbanCard
+                key={task.id}
+                task={task}
+                onOpen={() => onOpenTask(task.id)}
+                onDueDateChange={props.onTaskDueDateChange}
+              />
             ))
           )}
         </div>
@@ -182,7 +192,11 @@ function KanbanColumn(props: {
   )
 }
 
-function KanbanCard(props: { task: TaskSummary; onOpen: () => void }) {
+function KanbanCard(props: {
+  task: TaskSummary
+  onOpen: () => void
+  onDueDateChange?: (taskId: number, nextDueDate: string | null) => void | Promise<void>
+}) {
   const { task, onOpen } = props
   
   const {
@@ -202,6 +216,7 @@ function KanbanCard(props: { task: TaskSummary; onOpen: () => void }) {
   const pStyles = task.priority ? priorityStyles(task.priority) : null
   const dueDateStatus = getDueDateStatus(task.dueDate)
   const dueStyles = dueDateStyles(dueDateStatus)
+  const notesPreview = htmlToPlainText(task.notes)
 
   // Get overdue level for escalating visual urgency (only for non-DONE tasks)
   const overdueLevel = task.status !== 'DONE' ? getOverdueLevel(task.dueDate) : 0
@@ -241,19 +256,32 @@ function KanbanCard(props: { task: TaskSummary; onOpen: () => void }) {
         )}
       </div>
 
-      {task.notes?.trim() && (
-        <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400 line-clamp-2">{task.notes}</p>
-      )}
+      {notesPreview ? (
+        <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400 line-clamp-2">{notesPreview}</p>
+      ) : null}
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        {task.dueDate && (
-          <span className={cn(
-            'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium',
-            task.status !== 'DONE' ? dueStyles.badge : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
-          )}>
-            {formatDueDate(task.dueDate)}
-          </span>
-        )}
+        {task.dueDate ? (
+          props.onDueDateChange ? (
+            <DueDateInlinePill
+              dueDate={task.dueDate}
+              variant="chip"
+              showCalendarIcon={false}
+              badgeClassName={task.status !== 'DONE' ? dueStyles.badge : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'}
+              onChange={(next) => props.onDueDateChange?.(task.id, next)}
+              title="Edit due date"
+            />
+          ) : (
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium',
+                task.status !== 'DONE' ? dueStyles.badge : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
+              )}
+            >
+              {formatDueDate(task.dueDate)}
+            </span>
+          )
+        ) : null}
         
         {task.subtaskTotal > 0 && (
           <span className="text-xs text-slate-500 dark:text-slate-400">

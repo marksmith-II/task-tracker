@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { NoteDetail, NoteSummary, TaskSummary } from '../types'
 import { getNote, listNotes, reorderNotes } from '../lib/api'
 import { cn } from '../lib/cn'
+import { formatDateTime } from '../lib/datetime'
+import { htmlToPlainText } from '../lib/text'
 import { NoteDetailModal } from './NoteDetailModal'
 import { SortableItem } from './SortableItem'
 import {
@@ -22,9 +24,10 @@ import {
 } from '@dnd-kit/sortable'
 
 export function NotesPanel(props: { 
-  allTasks: TaskSummary[]
   openModalFromHeader?: boolean
   onModalOpened?: () => void
+  onTaskCreated?: (task: TaskSummary) => void
+  allTasks?: TaskSummary[]
 }) {
   const [notes, setNotes] = useState<NoteSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -96,15 +99,7 @@ export function NotesPanel(props: {
     try {
       const detail = await getNote(id)
       setSelected((prev) => (prev?.id === id ? detail : prev))
-      // Strip HTML tags for excerpt
-      const plainText = detail.body
-        .replace(/<[^>]*>/g, ' ')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/\s+/g, ' ')
-        .trim()
+      const plainText = htmlToPlainText(detail.body)
       setNotes((prev) =>
         prev.map((n) =>
           n.id === id
@@ -188,7 +183,7 @@ export function NotesPanel(props: {
       ) : filtered.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-600 bg-zinc-50 dark:bg-gray-700/50 p-6 text-center">
           <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">No notes yet.</p>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Create one to start linking tasks and collecting resources.</p>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Create one to capture ideas and create tasks.</p>
         </div>
       ) : (
         <DndContext
@@ -203,20 +198,25 @@ export function NotesPanel(props: {
                   <button
                     type="button"
                     onClick={() => openNote(n.id)}
-                    className={cn('group w-full rounded-2xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 p-4 text-left shadow-sm hover:bg-zinc-50/70 dark:hover:bg-gray-600/70')}
+                    className={cn(
+                      'group w-full h-44 rounded-2xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 p-4 text-left shadow-sm',
+                      'hover:bg-zinc-50/70 dark:hover:bg-gray-600/70',
+                      'flex flex-col'
+                    )}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <StickyNote className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-                          <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{n.title}</p>
-                        </div>
-                        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{n.excerpt || '—'}</p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <StickyNote className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+                        <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{n.title}</p>
                       </div>
+                      <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 line-clamp-4">{n.excerpt || '—'}</p>
                     </div>
-                    <div className="mt-3 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+
+                    <div className="mt-auto pt-3 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 border-t border-zinc-200/70 dark:border-zinc-600/70">
                       <span>{n.linkedTaskCount} linked tasks</span>
-                      <span>Updated {n.updatedAt}</span>
+                      <span className="tabular-nums" title={n.updatedAt}>
+                        Updated {formatDateTime(n.updatedAt)}
+                      </span>
                     </div>
                   </button>
                 </SortableItem>
@@ -229,7 +229,13 @@ export function NotesPanel(props: {
       <NoteDetailModal
         open={modalOpen}
         note={selected}
-        allTasks={props.allTasks}
+        availableTasks={props.allTasks}
+        onTaskCreated={(task) => {
+          // After creating a task from a note, jump the user into the task flow.
+          props.onTaskCreated?.(task)
+          setModalOpen(false)
+          setSelected(null)
+        }}
         onClose={() => {
           setModalOpen(false)
           setSelected(null)

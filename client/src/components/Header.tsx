@@ -13,10 +13,12 @@ export function Header(props: {
   onShowShortcuts: () => void
   viewMode: ViewMode
   onChangeViewMode: (mode: ViewMode) => void
+  viewModeEnabled?: boolean
 }) {
   const { theme, setTheme } = useTheme()
   const [newMenuOpen, setNewMenuOpen] = useState(false)
   const newMenuRef = useRef<HTMLDivElement>(null)
+  const viewModeEnabled = props.viewModeEnabled ?? true
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -63,13 +65,19 @@ export function Header(props: {
             <button
               type="button"
               onClick={() => props.onChangeViewMode('cards')}
+              disabled={!viewModeEnabled}
               className={cn(
                 'inline-flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium',
-                props.viewMode === 'cards' ? 'bg-zinc-100 dark:bg-gray-700 text-slate-900 dark:text-slate-100' : 'text-slate-700 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-gray-700'
+                !viewModeEnabled
+                  ? 'cursor-not-allowed opacity-50 text-slate-400 dark:text-slate-500'
+                  : props.viewMode === 'cards'
+                    ? 'bg-zinc-100 dark:bg-gray-700 text-slate-900 dark:text-slate-100'
+                    : 'text-slate-700 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-gray-700'
               )}
               aria-pressed={props.viewMode === 'cards'}
+              aria-disabled={!viewModeEnabled}
               aria-label="Card view"
-              title="Card view"
+              title={viewModeEnabled ? 'Card view' : 'View modes are only available in Tasks'}
             >
               <LayoutGrid className="h-4 w-4" />
               <span className="hidden lg:inline">Cards</span>
@@ -77,13 +85,19 @@ export function Header(props: {
             <button
               type="button"
               onClick={() => props.onChangeViewMode('list')}
+              disabled={!viewModeEnabled}
               className={cn(
                 'inline-flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium',
-                props.viewMode === 'list' ? 'bg-zinc-100 dark:bg-gray-700 text-slate-900 dark:text-slate-100' : 'text-slate-700 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-gray-700'
+                !viewModeEnabled
+                  ? 'cursor-not-allowed opacity-50 text-slate-400 dark:text-slate-500'
+                  : props.viewMode === 'list'
+                    ? 'bg-zinc-100 dark:bg-gray-700 text-slate-900 dark:text-slate-100'
+                    : 'text-slate-700 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-gray-700'
               )}
               aria-pressed={props.viewMode === 'list'}
+              aria-disabled={!viewModeEnabled}
               aria-label="List view"
-              title="List view"
+              title={viewModeEnabled ? 'List view' : 'View modes are only available in Tasks'}
             >
               <List className="h-4 w-4" />
               <span className="hidden lg:inline">List</span>
@@ -91,13 +105,19 @@ export function Header(props: {
             <button
               type="button"
               onClick={() => props.onChangeViewMode('kanban')}
+              disabled={!viewModeEnabled}
               className={cn(
                 'inline-flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium',
-                props.viewMode === 'kanban' ? 'bg-zinc-100 dark:bg-gray-700 text-slate-900 dark:text-slate-100' : 'text-slate-700 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-gray-700'
+                !viewModeEnabled
+                  ? 'cursor-not-allowed opacity-50 text-slate-400 dark:text-slate-500'
+                  : props.viewMode === 'kanban'
+                    ? 'bg-zinc-100 dark:bg-gray-700 text-slate-900 dark:text-slate-100'
+                    : 'text-slate-700 dark:text-slate-400 hover:bg-zinc-50 dark:hover:bg-gray-700'
               )}
               aria-pressed={props.viewMode === 'kanban'}
+              aria-disabled={!viewModeEnabled}
               aria-label="Kanban view"
-              title="Kanban view"
+              title={viewModeEnabled ? 'Kanban view' : 'View modes are only available in Tasks'}
             >
               <Columns3 className="h-4 w-4" />
               <span className="hidden lg:inline">Kanban</span>

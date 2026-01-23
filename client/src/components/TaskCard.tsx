@@ -1,10 +1,16 @@
-import { Calendar } from 'lucide-react'
 import type { TaskSummary } from '../types'
 import { cn } from '../lib/cn'
+import { htmlToPlainText } from '../lib/text'
+import { DueDateInlinePill } from './DueDateInlinePill'
 import { TagBadge } from './TagBadge'
-import { statusLabel, statusStyles, priorityStyles, getDueDateStatus, dueDateStyles, formatDueDate, getOverdueLevel, overdueCardStyles } from './taskStatus'
+import { statusLabel, statusStyles, priorityStyles, getDueDateStatus, dueDateStyles, getOverdueLevel, overdueCardStyles } from './taskStatus'
 
-export function TaskCard(props: { task: TaskSummary; onOpen: () => void; index?: number }) {
+export function TaskCard(props: {
+  task: TaskSummary
+  onOpen: () => void
+  onChangeDueDate: (nextDueDate: string | null) => void | Promise<void>
+  index?: number
+}) {
   const { task, index = 0 } = props
   const styles = statusStyles(task.status)
   const Icon = styles.icon
@@ -23,6 +29,8 @@ export function TaskCard(props: { task: TaskSummary; onOpen: () => void; index?:
   const progressText =
     task.subtaskTotal > 0 ? `${Math.min(task.subtaskCompleted, task.subtaskTotal)}/${task.subtaskTotal}` : null
 
+  const notesPreview = htmlToPlainText(task.notes)
+
   // Determine card border based on overdue status first, then priority
   const cardBorder = overdueLevel > 0
     ? overdueStyles.border
@@ -38,9 +46,16 @@ export function TaskCard(props: { task: TaskSummary; onOpen: () => void; index?:
     : isEven ? 'bg-white dark:bg-gray-800' : 'bg-slate-50/60 dark:bg-gray-800/60'
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={props.onOpen}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          props.onOpen()
+        }
+      }}
       className={cn(
         'group relative w-full rounded-2xl border p-4 text-left shadow-sm transition-all duration-200',
         'hover:-translate-y-0.5 hover:shadow-md active:scale-[0.98]',
@@ -85,9 +100,9 @@ export function TaskCard(props: { task: TaskSummary; onOpen: () => void; index?:
         </div>
       </div>
 
-      {task.notes?.trim() ? (
+      {notesPreview ? (
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-          <span className="block overflow-hidden text-ellipsis whitespace-nowrap">{task.notes.trim()}</span>
+          <span className="block overflow-hidden text-ellipsis whitespace-nowrap">{notesPreview}</span>
         </p>
       ) : (
         <p className="mt-2 text-sm text-slate-500/70 dark:text-slate-500">No notes</p>
@@ -95,14 +110,13 @@ export function TaskCard(props: { task: TaskSummary; onOpen: () => void; index?:
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {task.dueDate ? (
-          <span className={cn(
-            'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset',
-            task.status !== 'DONE' ? dueStyles.badge : 'bg-zinc-50 text-zinc-600 ring-zinc-200'
-          )}>
-            {dueStyles.icon && task.status !== 'DONE' && <dueStyles.icon className="h-3 w-3" />}
-            <Calendar className="h-3.5 w-3.5" />
-            {formatDueDate(task.dueDate)}
-          </span>
+          <DueDateInlinePill
+            dueDate={task.dueDate}
+            badgeClassName={task.status !== 'DONE' ? dueStyles.badge : 'bg-zinc-50 text-zinc-600 ring-zinc-200'}
+            leadingIcon={dueStyles.icon && task.status !== 'DONE' ? <dueStyles.icon className="h-3 w-3" /> : null}
+            onChange={props.onChangeDueDate}
+            title="Edit due date"
+          />
         ) : null}
 
         {task.tags.slice(0, 6).map((tag) => (
@@ -110,6 +124,6 @@ export function TaskCard(props: { task: TaskSummary; onOpen: () => void; index?:
         ))}
         {task.tags.length > 6 ? <span className="text-xs text-slate-500">+{task.tags.length - 6}</span> : null}
       </div>
-    </button>
+    </div>
   )
 }

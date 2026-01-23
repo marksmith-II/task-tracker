@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import type { TaskSummary } from '../types'
 import { listArchivedTasks, unarchiveTask } from '../lib/api'
 import { cn } from '../lib/cn'
+import { htmlToPlainText } from '../lib/text'
 import { TagBadge } from './TagBadge'
 import { statusLabel, statusStyles } from './taskStatus'
 
@@ -96,6 +97,7 @@ export function ArchivedTasksPanel(props: { onUnarchived: (task: TaskSummary) =>
             const styles = statusStyles(task.status)
             const Icon = styles.icon
             const isEven = index % 2 === 0
+            const notesPreview = htmlToPlainText(task.notes)
             return (
               <div
                 key={task.id}
@@ -124,9 +126,7 @@ export function ArchivedTasksPanel(props: { onUnarchived: (task: TaskSummary) =>
 
                   <div className="mt-2 min-w-0">
                     <p className="truncate text-sm font-semibold text-slate-900">{task.title}</p>
-                    {task.notes?.trim() ? (
-                      <p className="mt-1 truncate text-sm text-slate-600">{task.notes.trim()}</p>
-                    ) : null}
+                    {notesPreview ? <p className="mt-1 truncate text-sm text-slate-600">{notesPreview}</p> : null}
                   </div>
 
                   {task.tags.length ? (

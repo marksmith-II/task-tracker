@@ -1,10 +1,16 @@
-import { Calendar } from 'lucide-react'
 import type { TaskSummary } from '../types'
 import { cn } from '../lib/cn'
+import { htmlToPlainText } from '../lib/text'
+import { DueDateInlinePill } from './DueDateInlinePill'
 import { TagBadge } from './TagBadge'
-import { statusLabel, statusStyles, priorityStyles, getDueDateStatus, dueDateStyles, formatDueDate, getOverdueLevel, overdueCardStyles } from './taskStatus'
+import { statusLabel, statusStyles, priorityStyles, getDueDateStatus, dueDateStyles, getOverdueLevel, overdueCardStyles } from './taskStatus'
 
-export function TaskRow(props: { task: TaskSummary; onOpen: () => void; index?: number }) {
+export function TaskRow(props: {
+  task: TaskSummary
+  onOpen: () => void
+  onChangeDueDate: (nextDueDate: string | null) => void | Promise<void>
+  index?: number
+}) {
   const { task, index = 0 } = props
   const styles = statusStyles(task.status)
   const Icon = styles.icon
@@ -23,6 +29,8 @@ export function TaskRow(props: { task: TaskSummary; onOpen: () => void; index?: 
   const progressText =
     task.subtaskTotal > 0 ? `${Math.min(task.subtaskCompleted, task.subtaskTotal)}/${task.subtaskTotal}` : null
 
+  const notesPreview = htmlToPlainText(task.notes)
+
   // Determine row border based on overdue status first, then priority
   const rowBorder = overdueLevel > 0
     ? overdueStyles.border
@@ -38,9 +46,16 @@ export function TaskRow(props: { task: TaskSummary; onOpen: () => void; index?: 
     : isEven ? 'bg-white dark:bg-gray-800 hover:bg-zinc-50 dark:hover:bg-gray-700' : 'bg-amber-50/40 dark:bg-gray-800/60 hover:bg-amber-50/60 dark:hover:bg-gray-700/60'
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={props.onOpen}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          props.onOpen()
+        }
+      }}
       className={cn(
         'group relative flex w-full items-start justify-between gap-3 rounded-xl border px-3 py-3 text-left transition-all duration-200',
         'active:scale-[0.99]',
@@ -76,20 +91,19 @@ export function TaskRow(props: { task: TaskSummary; onOpen: () => void; index?: 
           {progressText ? <span className="text-xs font-medium text-slate-600">{progressText} subtasks</span> : null}
 
           {task.dueDate ? (
-            <span className={cn(
-              'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset',
-              task.status !== 'DONE' ? dueStyles.badge : 'bg-zinc-50 text-zinc-600 ring-zinc-200'
-            )}>
-              {dueStyles.icon && task.status !== 'DONE' && <dueStyles.icon className="h-3 w-3" />}
-              <Calendar className="h-3.5 w-3.5" />
-              {formatDueDate(task.dueDate)}
-            </span>
+            <DueDateInlinePill
+              dueDate={task.dueDate}
+              badgeClassName={task.status !== 'DONE' ? dueStyles.badge : 'bg-zinc-50 text-zinc-600 ring-zinc-200'}
+              leadingIcon={dueStyles.icon && task.status !== 'DONE' ? <dueStyles.icon className="h-3 w-3" /> : null}
+              onChange={props.onChangeDueDate}
+              title="Edit due date"
+            />
           ) : null}
         </div>
 
         <div className="mt-2 min-w-0">
           <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{task.title}</p>
-          {task.notes?.trim() ? <p className="mt-1 truncate text-sm text-slate-600 dark:text-slate-400">{task.notes.trim()}</p> : null}
+          {notesPreview ? <p className="mt-1 truncate text-sm text-slate-600 dark:text-slate-400">{notesPreview}</p> : null}
         </div>
 
         {task.tags.length ? (
@@ -103,6 +117,6 @@ export function TaskRow(props: { task: TaskSummary; onOpen: () => void; index?: 
       </div>
 
       <span className="shrink-0 self-center rounded-lg px-2 py-1 text-xs text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300">Open</span>
-    </button>
+    </div>
   )
 }

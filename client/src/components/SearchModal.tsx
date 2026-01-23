@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { FileText, Search, X, CheckSquare } from 'lucide-react'
 import type { NoteSummary, TaskSummary } from '../types'
 import { cn } from '../lib/cn'
+import { htmlToPlainText } from '../lib/text'
 import { statusStyles, priorityStyles, getDueDateStatus, dueDateStyles, formatDueDate } from './taskStatus'
 
 type SearchResult = 
@@ -35,7 +36,7 @@ export function SearchModal(props: {
     const matchedTasks: SearchResult[] = tasks
       .filter(t => 
         t.title.toLowerCase().includes(q) ||
-        t.notes.toLowerCase().includes(q) ||
+        htmlToPlainText(t.notes).toLowerCase().includes(q) ||
         t.tags.some(tag => tag.toLowerCase().includes(q))
       )
       .slice(0, 10)

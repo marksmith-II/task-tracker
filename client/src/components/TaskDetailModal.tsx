@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Archive, Plus, Save, Trash2, X } from 'lucide-react'
 import type { LinkAttachment, NoteSummary, TaskDetail, TaskLinkedNote, TaskPriority, TaskStatus, TaskSummary } from '../types'
 import { cn } from '../lib/cn'
+import { formatDateTime } from '../lib/datetime'
 import {
   addSubtask,
   addTaskLink,
@@ -265,7 +266,9 @@ export function TaskDetailModal(props: {
                       <div key={n.id} className="flex items-center justify-between gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium text-slate-900">{n.title}</p>
-                          <p className="text-xs text-slate-500">Updated: {n.updatedAt}</p>
+                          <p className="text-xs text-slate-500 tabular-nums" title={n.updatedAt}>
+                            Updated: {formatDateTime(n.updatedAt)}
+                          </p>
                         </div>
                         <button
                           type="button"
