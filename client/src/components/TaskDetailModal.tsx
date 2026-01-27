@@ -31,6 +31,7 @@ export function TaskDetailModal(props: {
   onDeleted: (id: number) => void
   onArchived?: (id: number) => void
   onRequestRefresh: (id: number) => void | Promise<void>
+  onOpenNote?: (id: number) => void
 }) {
   const { open, task } = props
   const isNew = !task
@@ -265,7 +266,14 @@ export function TaskDetailModal(props: {
                     linkedNotes.map((n) => (
                       <div key={n.id} className="flex items-center justify-between gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-slate-900">{n.title}</p>
+                          <button
+                            type="button"
+                            onClick={() => props.onOpenNote?.(n.id)}
+                            className="block truncate text-left text-sm font-medium text-slate-900 hover:underline"
+                            title="Open note"
+                          >
+                            {n.title}
+                          </button>
                           <p className="text-xs text-slate-500 tabular-nums" title={n.updatedAt}>
                             Updated: {formatDateTime(n.updatedAt)}
                           </p>

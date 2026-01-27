@@ -20,6 +20,7 @@ export function NoteDetailModal(props: {
   note: NoteDetail | null
   onTaskCreated?: (task: TaskSummary) => void
   availableTasks?: TaskSummary[]
+  onOpenTask?: (id: number) => void
   onClose: () => void
   onUpsertSummary: (note: { id: number; title: string; updatedAt: string; createdAt: string }) => void
   onDeleted: (id: number) => void
@@ -280,7 +281,14 @@ export function NoteDetailModal(props: {
                     linkedTasks.map((t) => (
                       <div key={t.id} className="flex items-center justify-between gap-2 rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-gray-700 px-3 py-2">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{t.title}</p>
+                          <button
+                            type="button"
+                            onClick={() => props.onOpenTask?.(t.id)}
+                            className="block truncate text-left text-sm font-medium text-slate-900 dark:text-slate-100 hover:underline"
+                            title="Open task"
+                          >
+                            {t.title}
+                          </button>
                           <p className="text-xs text-slate-500 dark:text-slate-400">{t.status}</p>
                         </div>
                         <button

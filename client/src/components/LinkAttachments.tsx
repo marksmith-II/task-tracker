@@ -4,7 +4,21 @@ import type { LinkAttachment } from '../types'
 import { cn } from '../lib/cn'
 
 function normalizeUrl(raw: string) {
-  const t = raw.trim()
+  let t = raw.trim()
+  if (!t) return t
+
+  // Common paste formats: <url>, (url), "url", 'url'
+  t = t.replace(/^<(.+)>$/, '$1').replace(/^[("'`]+/, '').replace(/[)"'`]+$/, '')
+
+  // Markdown link: [text](url)
+  const md = t.match(/^\[[^\]]*\]\(([^)]+)\)$/)
+  if (md?.[1]) t = md[1].trim()
+
+  // If user pasted without scheme (e.g. www.example.com), assume https.
+  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(t) && !t.includes(' ') && t.includes('.')) {
+    t = `https://${t}`
+  }
+
   return t
 }
 

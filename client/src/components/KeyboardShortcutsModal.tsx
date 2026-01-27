@@ -8,6 +8,11 @@ const shortcuts = [
   { keys: ['Esc'], description: 'Close modal / dialog' },
   { keys: ['↑', '↓'], description: 'Navigate search results' },
   { keys: ['Enter'], description: 'Open selected item' },
+  { keys: ['↑', '↓'], description: 'Navigate tasks (Tasks tab)' },
+  { keys: ['Space'], description: 'Toggle complete (focused task)' },
+  { keys: ['Alt', 'P'], description: 'Cycle priority (focused task)' },
+  { keys: ['Alt', 'D'], description: 'Edit due date (focused task)' },
+  { keys: ['⌘', 'A'], description: 'Select all filtered tasks', windowsKeys: ['Ctrl', 'A'] },
 ]
 
 export function KeyboardShortcutsModal(props: { open: boolean; onClose: () => void }) {

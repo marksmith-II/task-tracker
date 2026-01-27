@@ -28,6 +28,9 @@ export function NotesPanel(props: {
   onModalOpened?: () => void
   onTaskCreated?: (task: TaskSummary) => void
   allTasks?: TaskSummary[]
+  openNoteId?: number | null
+  onNoteOpened?: () => void
+  onOpenTask?: (id: number) => void
 }) {
   const [notes, setNotes] = useState<NoteSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -76,6 +79,14 @@ export function NotesPanel(props: {
       props.onModalOpened?.()
     }
   }, [props.openModalFromHeader, props.onModalOpened])
+
+  // Allow parent to open a specific note by id (used for navigating from linked tasks/notes)
+  useEffect(() => {
+    if (!props.openNoteId) return
+    void openNote(props.openNoteId)
+    props.onNoteOpened?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.openNoteId])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -230,6 +241,7 @@ export function NotesPanel(props: {
         open={modalOpen}
         note={selected}
         availableTasks={props.allTasks}
+        onOpenTask={(id) => props.onOpenTask?.(id)}
         onTaskCreated={(task) => {
           // After creating a task from a note, jump the user into the task flow.
           props.onTaskCreated?.(task)

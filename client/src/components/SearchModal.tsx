@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FileText, Search, X, CheckSquare } from 'lucide-react'
-import type { NoteSummary, TaskSummary } from '../types'
+import type { NoteSummary, TaskPriority, TaskStatus, TaskSummary } from '../types'
 import { cn } from '../lib/cn'
 import { htmlToPlainText } from '../lib/text'
 import { statusStyles, priorityStyles, getDueDateStatus, dueDateStyles, formatDueDate } from './taskStatus'
@@ -23,10 +23,62 @@ export function SearchModal(props: {
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
+  const parsedQuery = useMemo(() => {
+    const raw = query.trim()
+    const tokens = raw.split(/\s+/).filter(Boolean)
+    const filters: {
+      status?: TaskStatus
+      priority?: TaskPriority | 'NONE'
+      tag?: string
+      due?: 'overdue' | 'today' | 'soon' | 'upcoming' | 'none'
+    } = {}
+
+    const textParts: string[] = []
+    for (const tok of tokens) {
+      const m = tok.match(/^([a-zA-Z]+):(.*)$/)
+      if (!m) {
+        textParts.push(tok)
+        continue
+      }
+      const key = m[1]?.toLowerCase()
+      const val = (m[2] ?? '').trim().toLowerCase()
+
+      if (key === 'status') {
+        if (val === 'done') filters.status = 'DONE'
+        else if (val === 'todo') filters.status = 'TODO'
+        else if (val === 'in_progress' || val === 'inprogress' || val === 'doing') filters.status = 'IN_PROGRESS'
+        else textParts.push(tok)
+        continue
+      }
+      if (key === 'priority') {
+        if (val === 'high') filters.priority = 'HIGH'
+        else if (val === 'medium' || val === 'med') filters.priority = 'MEDIUM'
+        else if (val === 'low') filters.priority = 'LOW'
+        else if (val === 'none') filters.priority = 'NONE'
+        else textParts.push(tok)
+        continue
+      }
+      if (key === 'tag') {
+        if (val) filters.tag = m[2]!.trim()
+        else textParts.push(tok)
+        continue
+      }
+      if (key === 'due') {
+        if (val === 'overdue' || val === 'today' || val === 'soon' || val === 'upcoming' || val === 'none') filters.due = val
+        else textParts.push(tok)
+        continue
+      }
+
+      textParts.push(tok)
+    }
+
+    return { filters, text: textParts.join(' ').trim().toLowerCase() }
+  }, [query])
+
   // Search results
   const results = useMemo<SearchResult[]>(() => {
-    const q = query.toLowerCase().trim()
-    if (!q) {
+    const q = parsedQuery.text
+    if (!query.trim()) {
       // Show recent items when no query
       const recentTasks: SearchResult[] = tasks.slice(0, 5).map(t => ({ type: 'task', item: t }))
       const recentNotes: SearchResult[] = notes.slice(0, 3).map(n => ({ type: 'note', item: n }))
@@ -34,11 +86,30 @@ export function SearchModal(props: {
     }
 
     const matchedTasks: SearchResult[] = tasks
-      .filter(t => 
-        t.title.toLowerCase().includes(q) ||
-        htmlToPlainText(t.notes).toLowerCase().includes(q) ||
-        t.tags.some(tag => tag.toLowerCase().includes(q))
-      )
+      .filter((t) => {
+        const f = parsedQuery.filters
+        if (f.status && t.status !== f.status) return false
+        if (f.priority) {
+          if (f.priority === 'NONE' && t.priority !== null) return false
+          if (f.priority !== 'NONE' && t.priority !== f.priority) return false
+        }
+        if (f.tag) {
+          const needle = f.tag.toLowerCase()
+          if (!t.tags.some((tag) => tag.toLowerCase() === needle || tag.toLowerCase().includes(needle))) return false
+        }
+        if (f.due) {
+          const ds = getDueDateStatus(t.dueDate)
+          if (f.due === 'none' && t.dueDate !== null) return false
+          if (f.due !== 'none' && ds !== f.due) return false
+        }
+
+        if (!q) return true
+        return (
+          t.title.toLowerCase().includes(q) ||
+          htmlToPlainText(t.notes).toLowerCase().includes(q) ||
+          t.tags.some((tag) => tag.toLowerCase().includes(q))
+        )
+      })
       .slice(0, 10)
       .map(t => ({ type: 'task', item: t }))
 
@@ -51,7 +122,7 @@ export function SearchModal(props: {
       .map(n => ({ type: 'note', item: n }))
 
     return [...matchedTasks, ...matchedNotes]
-  }, [query, tasks, notes])
+  }, [query, parsedQuery, tasks, notes])
 
   // Reset selection when results change
   useEffect(() => {
@@ -134,7 +205,7 @@ export function SearchModal(props: {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search tasks and notes..."
+            placeholder="Search… (try status:done tag:nova priority:high due:overdue)"
             className="flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-400 outline-none"
           />
           <div className="flex items-center gap-2">

@@ -562,8 +562,21 @@ app.post('/api/tasks/:id/links', async (req, res) => {
 
   try {
     const ts = nowIso()
-    const preview = await getLinkPreview(url)
-    const screenshotPath = await captureScreenshot(url)
+    // Best-effort: persist the link even if preview/screenshot fetching fails
+    // (common for auth-gated/internal sites, rate limits, or bots being blocked).
+    let preview = { url, title: null, description: null, imageUrl: null, faviconUrl: null }
+    try {
+      preview = await getLinkPreview(url)
+    } catch {
+      // ignore preview errors
+    }
+
+    let screenshotPath = null
+    try {
+      screenshotPath = await captureScreenshot(url)
+    } catch {
+      // ignore screenshot errors
+    }
 
     const info = db
       .prepare(
@@ -792,8 +805,20 @@ app.post('/api/notes/:id/links', async (req, res) => {
 
   try {
     const ts = nowIso()
-    const preview = await getLinkPreview(url)
-    const screenshotPath = await captureScreenshot(url)
+    // Best-effort: persist the link even if preview/screenshot fetching fails.
+    let preview = { url, title: null, description: null, imageUrl: null, faviconUrl: null }
+    try {
+      preview = await getLinkPreview(url)
+    } catch {
+      // ignore preview errors
+    }
+
+    let screenshotPath = null
+    try {
+      screenshotPath = await captureScreenshot(url)
+    } catch {
+      // ignore screenshot errors
+    }
 
     const info = db
       .prepare(
